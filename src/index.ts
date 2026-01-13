@@ -70,9 +70,11 @@ async function loadConfig(): Promise<BotConfig> {
         phpSessionId,
         credentials: email && password ? { email, password } : undefined,
         androidToken: savedAccessToken, // Guardar para possível re-autenticação
-        checkIntervalMs: parseInt(process.env.CHECK_INTERVAL_MS || '60000', 10),
-        siloSellThreshold: parseInt(process.env.SILO_SELL_THRESHOLD || '90', 10),
+        checkIntervalMs: parseInt(process.env.CHECK_INTERVAL_MS || '120000', 10),
+        siloSellThreshold: parseInt(process.env.SILO_SELL_THRESHOLD || '80', 10),
         debug: process.env.DEBUG === 'true',
+        maxTractorsPerOp: parseInt(process.env.MAX_TRACTORS_PER_OP || '4', 10),
+        maxIdleTimeMinutes: parseInt(process.env.MAX_IDLE_TIME_MINUTES || '30', 10),
     };
 }
 

@@ -187,90 +187,157 @@ export class FarmBot {
         );
 
         try {
-            // Obter equipamento disponível para esta fazenda para o tipo de operação desejado
-            this.logger.debugLog(`Buscando equipamento para farmlandId: ${task.farmlandId}, opType: ${task.type}`);
-            const equipment = await this.tractorService.getEquipmentForFarmland(task.farmlandId, task.type);
-
-            this.logger.debugLog(`Equipamento encontrado: ${JSON.stringify(equipment)}`);
-
-            if (!equipment) {
-                this.logger.warn(`Nenhum equipamento disponível para ${task.farmlandName}`);
-                return false;
+            // Para seeding e plowing, usar o novo método multi-tractor
+            if (task.type === 'seeding' || task.type === 'plowing') {
+                return this.executeMultiTractorTask(task);
             }
 
-            // Verificar se o tipo de operação do equipamento corresponde
-            if (equipment.opType !== task.type) {
-                this.logger.debugLog(
-                    `Equipamento disponível é para ${equipment.opType}, mas tarefa é ${task.type}`
-                );
-            }
-
-            // Verificar tempo máximo de operação (6 horas = 21600 segundos)
-            const MAX_OPERATION_HOURS = 6;
-            const MAX_OPERATION_SECONDS = MAX_OPERATION_HOURS * 3600;
-
-            if (equipment.estimatedDuration > MAX_OPERATION_SECONDS) {
-                const estimatedHours = (equipment.estimatedDuration / 3600).toFixed(1);
-                this.logger.warn(
-                    `⏱️ Operação em "${task.farmlandName}" ignorada: tempo estimado de ${estimatedHours}h excede o limite de ${MAX_OPERATION_HOURS}h. ` +
-                    `Considere usar equipamento mais rápido (atual: ${equipment.haHour} ha/h).`
-                );
-                return false;
-            }
-
-            // Construir dados para a ação batch
-            const farmlandIds: Record<string, number> = {
-                [String(task.userFarmlandId)]: task.userFarmlandId,
-            };
-
-            const units = this.tractorService.buildBatchUnits(
-                equipment.tractorId,
-                equipment.implementId
-            );
-
-            this.logger.debugLog(`farmlandIds: ${JSON.stringify(farmlandIds)}`);
-            this.logger.debugLog(`units: ${JSON.stringify(units)}`);
-
-            // Executar ação - harvest usa endpoint diferente!
-            let result;
-            if (task.type === 'harvesting') {
-                result = await this.api.startHarvestAction(
-                    task.userFarmlandId,
-                    equipment.tractorId
-                );
-            } else {
-                // Para seeding, incluir o cropId selecionado pelo Smart Seeding
-                const cropId = (task as any).cropId;
-
-                result = await this.api.startBatchAction(
-                    task.type,
-                    farmlandIds,
-                    units,
-                    true,
-                    false,
-                    cropId
-                );
-            }
-
-            this.logger.debugLog(`Resultado da ação: ${JSON.stringify(result)}`);
-
-            if (result.failed === 0) {
-                const taskResult = result.result?.[String(task.userFarmlandId)];
-                this.logger.success(
-                    `${task.type} iniciado em "${task.farmlandName}" - Tempo estimado: ${taskResult?.opTimeRemain || 'N/A'}s`
-                );
-                return true;
-            } else {
-                const errorMsg = result.errors?.join(', ') || 'Erro desconhecido';
-                this.logger.warn(
-                    `Falha ao executar ${task.type} em "${task.farmlandName}": ${errorMsg}`
-                );
-                return false;
-            }
+            // Para harvesting e clearing, usar lógica simples
+            return this.executeSingleTractorTask(task);
         } catch (error) {
             this.logger.error(
                 `Erro ao executar ${task.type} em "${task.farmlandName}"`,
                 error as Error
+            );
+            return false;
+        }
+    }
+
+    /**
+     * Executa uma tarefa com múltiplos tratores (seeding/plowing)
+     */
+    private async executeMultiTractorTask(task: AvailableTask): Promise<boolean> {
+        // Obter tratores otimizados
+        const optimal = await this.tractorService.getOptimalTractorsForOperation(
+            task.farmlandId,
+            task.farmId,
+            task.area,
+            task.complexityIndex,
+            task.type as 'seeding' | 'plowing',
+            this.config.maxTractorsPerOp,
+            this.config.maxIdleTimeMinutes
+        );
+
+        if (!optimal || optimal.tractors.length === 0) {
+            this.logger.warn(`Nenhum trator disponível para ${task.farmlandName}`);
+            return false;
+        }
+
+        // Verificar tempo máximo de operação (6 horas = 21600 segundos)
+        const MAX_OPERATION_HOURS = 6;
+        const MAX_OPERATION_SECONDS = MAX_OPERATION_HOURS * 3600;
+
+        if (optimal.estimatedDuration > MAX_OPERATION_SECONDS) {
+            const estimatedHours = (optimal.estimatedDuration / 3600).toFixed(1);
+            this.logger.warn(
+                `⏱️ Operação em "${task.farmlandName}" ignorada: tempo estimado de ${estimatedHours}h excede o limite de ${MAX_OPERATION_HOURS}h.`
+            );
+            return false;
+        }
+
+        // Construir dados para a ação batch
+        const farmlandIds: Record<string, number> = {
+            [String(task.userFarmlandId)]: task.userFarmlandId,
+        };
+
+        const units = this.tractorService.buildMultiBatchUnits(optimal.tractors);
+
+        this.logger.debugLog(`farmlandIds: ${JSON.stringify(farmlandIds)}`);
+        this.logger.debugLog(`units: ${JSON.stringify(units)}`);
+
+        // Para seeding, incluir o cropId selecionado pelo Smart Seeding
+        const cropId = (task as any).cropId;
+
+        const result = await this.api.startBatchAction(
+            task.type,
+            farmlandIds,
+            units,
+            true,
+            false,
+            cropId
+        );
+
+        this.logger.debugLog(`Resultado da ação: ${JSON.stringify(result)}`);
+
+        if (result.failed === 0) {
+            const taskResult = result.result?.[String(task.userFarmlandId)];
+            const timeMinutes = Math.ceil((taskResult?.opTimeRemain || 0) / 60);
+            this.logger.success(
+                `${task.type} iniciado em "${task.farmlandName}" com ${optimal.tractors.length} trator(es) - ~${timeMinutes}min`
+            );
+            return true;
+        } else {
+            const errorMsg = result.errors?.join(', ') || 'Erro desconhecido';
+            this.logger.warn(
+                `Falha ao executar ${task.type} em "${task.farmlandName}": ${errorMsg}`
+            );
+            return false;
+        }
+    }
+
+    /**
+     * Executa uma tarefa com trator único (harvesting/clearing)
+     */
+    private async executeSingleTractorTask(task: AvailableTask): Promise<boolean> {
+        // Obter equipamento disponível
+        const equipment = await this.tractorService.getEquipmentForFarmland(task.farmlandId, task.type);
+
+        if (!equipment) {
+            this.logger.warn(`Nenhum equipamento disponível para ${task.farmlandName}`);
+            return false;
+        }
+
+        // Verificar tempo máximo de operação (6 horas = 21600 segundos)
+        const MAX_OPERATION_HOURS = 6;
+        const MAX_OPERATION_SECONDS = MAX_OPERATION_HOURS * 3600;
+
+        if (equipment.estimatedDuration > MAX_OPERATION_SECONDS) {
+            const estimatedHours = (equipment.estimatedDuration / 3600).toFixed(1);
+            this.logger.warn(
+                `⏱️ Operação em "${task.farmlandName}" ignorada: tempo estimado de ${estimatedHours}h excede o limite de ${MAX_OPERATION_HOURS}h.`
+            );
+            return false;
+        }
+
+        // Construir dados para a ação batch
+        const farmlandIds: Record<string, number> = {
+            [String(task.userFarmlandId)]: task.userFarmlandId,
+        };
+
+        const units = this.tractorService.buildBatchUnits(
+            equipment.tractorId,
+            equipment.implementId
+        );
+
+        // Executar ação - harvest usa endpoint diferente!
+        let result;
+        if (task.type === 'harvesting') {
+            result = await this.api.startHarvestAction(
+                task.userFarmlandId,
+                equipment.tractorId
+            );
+        } else {
+            result = await this.api.startBatchAction(
+                task.type,
+                farmlandIds,
+                units,
+                true,
+                false
+            );
+        }
+
+        this.logger.debugLog(`Resultado da ação: ${JSON.stringify(result)}`);
+
+        if (result.failed === 0) {
+            const taskResult = result.result?.[String(task.userFarmlandId)];
+            this.logger.success(
+                `${task.type} iniciado em "${task.farmlandName}" - Tempo estimado: ${taskResult?.opTimeRemain || 'N/A'}s`
+            );
+            return true;
+        } else {
+            const errorMsg = result.errors?.join(', ') || 'Erro desconhecido';
+            this.logger.warn(
+                `Falha ao executar ${task.type} em "${task.farmlandName}": ${errorMsg}`
             );
             return false;
         }

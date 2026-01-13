@@ -369,4 +369,219 @@ export class TractorService {
         }
         return { [String(tractorId)]: unit };
     }
+
+    /**
+     * Prepara os dados de múltiplas unidades para uma ação batch
+     */
+    buildMultiBatchUnits(tractors: { tractorId: number; implementId?: number }[]): Record<string, BatchActionUnit> {
+        const units: Record<string, BatchActionUnit> = {};
+        for (const tractor of tractors) {
+            const unit: BatchActionUnit = { tractorId: tractor.tractorId };
+            if (tractor.implementId) {
+                unit.implementId = tractor.implementId;
+            }
+            units[String(tractor.tractorId)] = unit;
+        }
+        return units;
+    }
+
+    /**
+     * Obtém tratores otimizados para uma operação, considerando:
+     * - Múltiplos tratores (até maxTractors)
+     * - Auto-implement (anexar implementos disponíveis)
+     * - Tempo ocioso de outros campos
+     */
+    async getOptimalTractorsForOperation(
+        farmlandId: number,
+        farmId: number,
+        area: number,
+        complexityIndex: number,
+        opType: 'seeding' | 'plowing' | 'harvesting' | 'clearing',
+        maxTractors: number = 4,
+        maxIdleTimeMinutes: number = 30
+    ): Promise<{
+        tractors: { tractorId: number; implementId?: number; haHour: number }[];
+        totalHaHour: number;
+        estimatedDuration: number;
+        opType: string;
+    } | null> {
+        try {
+            // 1. Buscar tratores disponíveis para esta operação
+            let response: any;
+            if (opType === 'seeding') {
+                response = await this.api.getFarmlandActionSeed(farmlandId, farmId, area, complexityIndex);
+            } else if (opType === 'plowing') {
+                response = await this.api.getFarmlandActionPlow(farmlandId, farmId, area, complexityIndex);
+            } else {
+                // Para harvesting e clearing, usar lógica simples (equipamento único)
+                const equipment = await this.getEquipmentForFarmland(farmlandId, opType);
+                if (!equipment) return null;
+                return {
+                    tractors: [{ tractorId: equipment.tractorId, implementId: equipment.implementId, haHour: equipment.haHour }],
+                    totalHaHour: equipment.haHour,
+                    estimatedDuration: equipment.estimatedDuration,
+                    opType,
+                };
+            }
+
+            if (!response.tractors || response.tractors.length === 0) {
+                this.logger.debugLog(`[MultiTractor] Nenhum trator disponível para ${opType}`);
+                return null;
+            }
+
+            // 2. Filtrar tratores do tipo correto e não pendentes
+            const availableTractors = response.tractors.filter((t: any) =>
+                t.type === opType && !t.isPending && t.hasImplement
+            );
+
+            // 3. Verificar implementos disponíveis para auto-attach
+            const availableImplements = (response.implements || []).filter((i: any) =>
+                i.type === opType && i.available > 0
+            );
+
+            // 4. Tratores sem implemento mas que podem receber um
+            const tractorsWithoutImplement = response.tractors.filter((t: any) =>
+                t.type !== opType && !t.isPending && !t.hasImplement
+            );
+
+            // 5. Montar lista de tratores utilizáveis
+            const usableTractors: { tractorId: number; implementId?: number; haHour: number }[] = [];
+
+            // Primeiro, adicionar tratores que já têm o implemento correto
+            for (const tractor of availableTractors) {
+                if (usableTractors.length >= maxTractors) break;
+                usableTractors.push({
+                    tractorId: tractor.id,
+                    implementId: tractor.implementId,
+                    haHour: tractor.haHour,
+                });
+            }
+
+            // Depois, tentar anexar implementos disponíveis a tratores sem implemento
+            for (const implement of availableImplements) {
+                if (usableTractors.length >= maxTractors) break;
+
+                // Encontrar um trator que possa usar este implemento
+                const compatibleTractor = response.tractors.find((t: any) =>
+                    !t.isPending &&
+                    t.hp >= implement.minHp &&
+                    !usableTractors.some(u => u.tractorId === t.id)
+                );
+
+                if (compatibleTractor) {
+                    this.logger.info(`🔧 Auto-attach: Anexando "${implement.name}" ao trator "${compatibleTractor.tractorName}"`);
+                    usableTractors.push({
+                        tractorId: compatibleTractor.id,
+                        implementId: implement.id,
+                        haHour: implement.haHour,
+                    });
+                }
+            }
+
+            if (usableTractors.length === 0) {
+                this.logger.debugLog(`[MultiTractor] Nenhum trator utilizável para ${opType}`);
+                return null;
+            }
+
+            // 6. Ordenar por haHour (maior primeiro)
+            usableTractors.sort((a, b) => b.haHour - a.haHour);
+
+            // 7. Verificar operações pendentes para não deixar campos ociosos
+            const pendingOps = await this.getPendingOperationsInFarm(farmId);
+
+            // Calcular quantos tratores podemos usar sem deixar campos ociosos por muito tempo
+            let tractorsToUse = usableTractors.slice(0, maxTractors);
+
+            if (pendingOps.length > 0 && tractorsToUse.length > 1) {
+                // Calcular tempo de operação com N tratores
+                const totalHaHour = tractorsToUse.reduce((sum, t) => sum + t.haHour, 0);
+                const operationTimeSeconds = (area * complexityIndex) / totalHaHour * 3600;
+
+                // Verificar se alguma operação pendente vai precisar de trator
+                for (const pending of pendingOps) {
+                    const timeUntilNeedsTractor = pending.opTimeRemain; // segundos
+                    const potentialIdleTime = operationTimeSeconds - timeUntilNeedsTractor;
+
+                    if (potentialIdleTime > maxIdleTimeMinutes * 60) {
+                        // Reduzir número de tratores para que a operação termine mais rápido? Não!
+                        // Na verdade, precisamos reservar pelo menos 1 trator para o campo pendente
+                        if (tractorsToUse.length > 1) {
+                            this.logger.info(
+                                `⚠️ Campo "${pending.farmlandName}" vai precisar de trator em ${Math.ceil(timeUntilNeedsTractor / 60)}min. ` +
+                                `Reservando 1 trator para ele.`
+                            );
+                            tractorsToUse = tractorsToUse.slice(0, tractorsToUse.length - 1);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // 8. Calcular totais finais
+            const finalTotalHaHour = tractorsToUse.reduce((sum, t) => sum + t.haHour, 0);
+            const estimatedDuration = Math.ceil((area * complexityIndex) / finalTotalHaHour * 3600);
+
+            this.logger.info(
+                `🚜 Multi-tractor: Usando ${tractorsToUse.length} trator(es) para ${opType} ` +
+                `(${finalTotalHaHour} ha/h total, ~${Math.ceil(estimatedDuration / 60)}min)`
+            );
+
+            return {
+                tractors: tractorsToUse,
+                totalHaHour: finalTotalHaHour,
+                estimatedDuration,
+                opType,
+            };
+        } catch (error) {
+            this.logger.error(`Erro ao obter tratores otimizados para ${opType}`, error as Error);
+            return null;
+        }
+    }
+
+    /**
+     * Obtém operações pendentes (em andamento) em uma farm
+     */
+    private async getPendingOperationsInFarm(farmId: number): Promise<{
+        farmlandId: number;
+        farmlandName: string;
+        opType: string;
+        opTimeRemain: number;
+    }[]> {
+        try {
+            const pending = await this.api.getPendingTab();
+            const operations: { farmlandId: number; farmlandName: string; opType: string; opTimeRemain: number }[] = [];
+
+            if (pending.farmlands?.operating) {
+                for (const [id, op] of Object.entries(pending.farmlands.operating)) {
+                    if (op.farmId === farmId) {
+                        operations.push({
+                            farmlandId: op.farmlandId,
+                            farmlandName: op.farmlandName,
+                            opType: op.opType,
+                            opTimeRemain: op.opTimeRemain,
+                        });
+                    }
+                }
+            }
+
+            if (pending.farmlands?.maturing) {
+                for (const [id, op] of Object.entries(pending.farmlands.maturing)) {
+                    if (op.farmId === farmId) {
+                        operations.push({
+                            farmlandId: op.farmlandId,
+                            farmlandName: op.farmlandName,
+                            opType: 'harvesting', // Vai precisar colher
+                            opTimeRemain: op.opTimeRemain,
+                        });
+                    }
+                }
+            }
+
+            return operations;
+        } catch (error) {
+            this.logger.debugLog(`[PendingOps] Erro ao buscar operações pendentes: ${error}`);
+            return [];
+        }
+    }
 }
+

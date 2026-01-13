@@ -87,32 +87,50 @@ export class FuelService {
      * Retorna true se comprou, false se não precisou
      */
     async checkAndBuyFuel(): Promise<boolean> {
-        const check = await this.shouldBuyFuel();
+        const status = await this.getFuelStatus();
+        const currentLevel = status.fuelSilo.siloHolding;
+        const currentPrice = status.fuelCost;
+        const remainingCapacity = status.fuelSilo.remainingCapacity;
+        const accountBalance = status.user.account;
 
+        // Log do status com saldo
         this.logger.fuel(
-            `Combustível: ${check.currentLevel.toLocaleString()}L | ` +
-            `Preço: $${check.currentPrice.toLocaleString()}/1000L`
+            `Combustível: ${currentLevel.toLocaleString()}L | ` +
+            `Preço: $${currentPrice.toLocaleString()}/1000L | ` +
+            `💰 Saldo: $${accountBalance.toLocaleString()}`
         );
 
-        if (!check.shouldBuy) {
-            this.logger.debugLog(`[Fuel] ${check.reason}`);
+        // Verificar se precisa comprar
+        let shouldBuy = false;
+        let reason = '';
+
+        if (currentLevel < FUEL_MIN_LEVEL) {
+            shouldBuy = true;
+            reason = `Combustível baixo (${currentLevel}L < ${FUEL_MIN_LEVEL}L)`;
+        } else if (currentPrice < FUEL_PRICE_THRESHOLD && remainingCapacity > 0) {
+            shouldBuy = true;
+            reason = `Preço baixo ($${currentPrice}/1000L < $${FUEL_PRICE_THRESHOLD})`;
+        }
+
+        if (!shouldBuy) {
+            this.logger.debugLog(`[Fuel] Combustível OK`);
             return false;
         }
 
-        this.logger.info(`⛽ ${check.reason}`);
+        this.logger.info(`⛽ ${reason}`);
 
         // Calcular quanto comprar
         // Se está baixo, comprar até o mínimo + margem
         // Se preço está bom, encher o tanque
         let amountToBuy: number;
 
-        if (check.currentLevel < FUEL_MIN_LEVEL) {
+        if (currentLevel < FUEL_MIN_LEVEL) {
             // Comprar para ficar com 2000L (margem de segurança)
             const targetLevel = 2000;
-            amountToBuy = Math.min(targetLevel - check.currentLevel, check.maxCanBuy);
+            amountToBuy = Math.min(targetLevel - currentLevel, remainingCapacity);
         } else {
             // Preço bom - encher o tanque
-            amountToBuy = check.maxCanBuy;
+            amountToBuy = remainingCapacity;
         }
 
         if (amountToBuy <= 0) {

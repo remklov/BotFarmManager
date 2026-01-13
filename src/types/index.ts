@@ -439,6 +439,8 @@ export interface BotConfig {
     checkIntervalMs: number;
     siloSellThreshold: number;
     debug: boolean;
+    maxTractorsPerOp: number; // Máximo de tratores por operação (default: 4)
+    maxIdleTimeMinutes: number; // Tempo máximo que um campo pode ficar ocioso (default: 30)
 }
 
 // ============================================

@@ -22,12 +22,11 @@ Bot automatizado para gerenciamento de fazendas no **Farm Manager** (farm-app.tr
 | **Seleção Inteligente de Tratores** | Sempre usa o trator/equipamento mais rápido disponível (maior haHour) |
 | **Limite de Tempo de Operação** | Ignora operações que demorariam mais de 6 horas |
 | **Login Automático** | Suporta login via Android token ou email/senha |
+| **Multi-Tractor** | Usa até 4 tratores simultaneamente para acelerar operações |
+| **Auto-Implement** | Anexa implementos automaticamente quando necessário |
+| **Verificação de Ociosidade** | Reserva tratores para operações que vão precisar em breve |
 
 ### 🔜 Roadmap
-
-**Próximas prioridades:**
-- [ ] **Auto Troca de Implementos** - Trocar implementos automaticamente quando necessário
-- [ ] **Operações com Múltiplos Tratores** - Usar vários tratores/colheitadeiras simultaneamente para acelerar operações
 
 **Futuro:**
 - [ ] Suporte a irrigação automática
