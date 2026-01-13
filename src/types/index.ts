@@ -435,6 +435,7 @@ export interface AuthCredentials {
 export interface BotConfig {
     phpSessionId?: string;
     credentials?: AuthCredentials;
+    androidToken?: string; // Para login via guest Android token
     checkIntervalMs: number;
     siloSellThreshold: number;
     debug: boolean;

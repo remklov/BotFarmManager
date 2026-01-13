@@ -6,6 +6,25 @@ import axios from 'axios';
 import { Logger } from '../utils/logger';
 
 const LOGIN_URL = 'https://farm-app.trophyapi.com/login-check.php';
+const ANDROID_DISPATCH_URL = 'https://farm-app.trophyapi.com/app/app-dispatch.php';
+const AUTH_URL = 'https://farm-app.trophyapi.com/app/auth.php';
+
+const ANDROID_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 12; SM-G973F Build/SP1A.210812.016; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.146 Mobile Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br, zstd',
+    'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+    'sec-ch-ua': '"Android WebView";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+    'sec-ch-ua-mobile': '?1',
+    'sec-ch-ua-platform': '"Android"',
+    'upgrade-insecure-requests': '1',
+    'x-requested-with': 'com.trophygames.farmmanager',
+    'sec-fetch-site': 'none',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-user': '?1',
+    'sec-fetch-dest': 'document',
+    'priority': 'u=0, i',
+};
 
 const DEFAULT_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
@@ -26,6 +45,104 @@ export class AuthService {
 
     constructor() {
         this.logger = new Logger('Auth');
+    }
+
+    /**
+     * Realiza login usando um access_token do Android (guest token)
+     * O servidor responde com 302 redirect e um novo PHPSESSID no Set-Cookie
+     * @param accessToken O access_token do guest Android (formato: guest_android_...)
+     * @param appVersion Versão do app (padrão: 1.1.4)
+     * @returns O PHPSESSID da sessão autenticada
+     */
+    async loginWithAndroidToken(accessToken: string, appVersion: string = '1.1.4'): Promise<string> {
+        this.logger.info('🤖 Fazendo login via Android token...');
+
+        try {
+            const params = new URLSearchParams({
+                access_token: accessToken,
+                platform: 'android',
+                appVersion: appVersion,
+            });
+            const url = `${ANDROID_DISPATCH_URL}?${params.toString()}`;
+
+            const response = await axios.get(url, {
+                headers: {
+                    ...ANDROID_HEADERS,
+                    Cookie: 'device=android',
+                },
+                maxRedirects: 0,
+                validateStatus: (status: number) => status < 400 || status === 302,
+            });
+
+            // Extrair o PHPSESSID da resposta
+            const sessionId = this.extractSessionId(response.headers['set-cookie']);
+
+            if (sessionId) {
+                this.logger.info(`✅ Login Android realizado com sucesso! Session ID: ${sessionId.substring(0, 8)}...`);
+                return sessionId;
+            }
+
+            throw new Error('Não foi possível obter PHPSESSID do login Android. Token pode estar inválido.');
+
+        } catch (error: unknown) {
+            if (axios.isAxiosError(error)) {
+                if (error.response?.status === 401 || error.response?.status === 403) {
+                    throw new Error('Access token Android inválido.');
+                }
+                throw new Error(`Erro de conexão ao fazer login Android: ${error.message}`);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Registra uma NOVA conta guest e faz login automaticamente.
+     * Não precisa de nenhuma credencial - o servidor gera um novo usuário a cada chamada.
+     * @param appVersion Versão do app (padrão: 1.1.4)
+     * @returns Objeto com accessToken (para uso futuro) e phpSessionId
+     */
+    async registerGuestAndLogin(appVersion: string = '1.1.4'): Promise<{ accessToken: string; phpSessionId: string; userId: number }> {
+        this.logger.info('🆕 Registrando nova conta guest...');
+
+        try {
+            // Passo 1: Chamar /app/auth.php para criar nova conta guest
+            const authResponse = await axios.post(AUTH_URL, {
+                platform: 'android',
+                appVersion: appVersion,
+            }, {
+                headers: {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'platform': 'android',
+                    'appVersion': appVersion,
+                },
+            });
+
+            const authData = authResponse.data;
+
+            if (!authData.success || !authData.access_token) {
+                throw new Error('Falha ao registrar conta guest. Resposta inválida do servidor.');
+            }
+
+            const accessToken = authData.access_token;
+            const userId = authData.user_id;
+
+            this.logger.info(`✅ Conta guest criada! User ID: ${userId}, Token: ${accessToken.substring(0, 20)}...`);
+
+            // Passo 2: Usar o access_token para obter PHPSESSID
+            const phpSessionId = await this.loginWithAndroidToken(accessToken, appVersion);
+
+            return {
+                accessToken,
+                phpSessionId,
+                userId,
+            };
+
+        } catch (error: unknown) {
+            if (axios.isAxiosError(error)) {
+                throw new Error(`Erro ao registrar conta guest: ${error.message}`);
+            }
+            throw error;
+        }
     }
 
     /**
