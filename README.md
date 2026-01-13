@@ -17,10 +17,19 @@ Bot automatizado para gerenciamento de fazendas no **Farm Manager** (farm-app.tr
 | **Smart Seeding** | Seleciona a melhor semente baseado no `cropScore` do terreno |
 | **Compra de Sementes** | Compra automaticamente sementes quando estoque está baixo |
 | **Venda Automática** | Vende produtos do silo quando atinge % configurável |
-| **Monitoramento do Silo** | Exibe status do silo a cada ciclo |
+| **Monitoramento do Silo** | Exibe status individual de cada grão (capacidade por tipo) |
+| **Gerenciamento de Combustível** | Mantém combustível acima de 1000L e compra quando preço está bom (<$1000) |
+| **Seleção Inteligente de Tratores** | Sempre usa o trator/equipamento mais rápido disponível (maior haHour) |
+| **Limite de Tempo de Operação** | Ignora operações que demorariam mais de 6 horas |
+| **Login Automático** | Suporta login via Android token ou email/senha |
 
 ### 🔜 Roadmap
 
+**Próximas prioridades:**
+- [ ] **Auto Troca de Implementos** - Trocar implementos automaticamente quando necessário
+- [ ] **Operações com Múltiplos Tratores** - Usar vários tratores/colheitadeiras simultaneamente para acelerar operações
+
+**Futuro:**
 - [ ] Suporte a irrigação automática
 - [ ] Fertilização automática
 - [ ] Múltiplas contas
@@ -32,9 +41,19 @@ Bot automatizado para gerenciamento de fazendas no **Farm Manager** (farm-app.tr
 
 ## 🔐 Autenticação
 
-O bot precisa de um `PHPSESSID` válido para funcionar. Existem **duas formas** de obtê-lo:
+O bot precisa de um `PHPSESSID` válido para funcionar. Existem **três formas** de obtê-lo:
 
-### Opção 1: Login com Email/Senha (Recomendado)
+### Opção 1: Android Token (Recomendado) ⭐
+
+Se você tem acesso ao token do app Android:
+
+```env
+ANDROID_TOKEN=seu_token_aqui
+```
+
+O bot fará login automaticamente usando o token e renovará a sessão quando necessário.
+
+### Opção 2: Login com Email/Senha
 
 Se você sabe suas credenciais:
 
@@ -45,17 +64,15 @@ FARM_PASSWORD=sua_senha
 
 O bot fará login automaticamente e obterá o `PHPSESSID`.
 
-### Opção 2: PHPSESSID Manual
+### Opção 3: PHPSESSID Manual
 
-Se você usa o app Android e não sabe as credenciais:
+Se preferir configurar manualmente:
 
 ```env
 PHPSESSID=seu_session_id_aqui
 ```
 
 #### 📱 Como obter o PHPSESSID do app Android
-
-O app Android parece usar autenticação persistente via **Device ID** ou **token local**, não email/senha. Para interceptar o PHPSESSID:
 
 1. **Configurar proxy no celular:**
    - Instale [mitmproxy](https://mitmproxy.org/) ou [Charles Proxy](https://www.charlesproxy.com/)
@@ -73,16 +90,6 @@ O app Android parece usar autenticação persistente via **Device ID** ou **toke
    ```
 
 > ⚠️ **Nota:** O PHPSESSID pode expirar. Se o bot parar de funcionar, intercepte um novo.
-
-#### 🔍 Investigando a autenticação do app
-
-Ainda estamos investigando como o app mantém a sessão. Possibilidades:
-
-- **Device ID:** O app envia um identificador único do dispositivo
-- **Refresh Token:** Token salvo localmente que renova a sessão
-- **Firebase Token:** Autenticação via FCM
-
-Se você descobrir mais detalhes, contribua!
 
 ---
 
@@ -114,11 +121,12 @@ npm start
 
 | Variável | Descrição | Default |
 |----------|-----------|---------|
+| `ANDROID_TOKEN` | Token do app Android para login automático | - |
 | `FARM_EMAIL` | Email de login | - |
 | `FARM_PASSWORD` | Senha de login | - |
 | `PHPSESSID` | Session ID manual (alternativa ao login) | - |
-| `CHECK_INTERVAL_MS` | Intervalo entre ciclos (ms) | `60000` |
-| `SILO_SELL_THRESHOLD` | % do silo para venda automática | `90` |
+| `CHECK_INTERVAL_MS` | Intervalo entre ciclos (ms) | `120000` |
+| `SILO_SELL_THRESHOLD` | % do silo para venda automática | `80` |
 | `DEBUG` | Ativar logs detalhados | `false` |
 
 ---
@@ -128,21 +136,37 @@ npm start
 ```
 src/
 ├── api/
-│   └── client.ts       # Cliente HTTP para a API
+│   └── client.ts        # Cliente HTTP para a API
 ├── bot/
-│   └── FarmBot.ts      # Lógica principal do bot
+│   └── FarmBot.ts       # Lógica principal do bot
 ├── services/
-│   ├── AuthService.ts  # Login e obtenção de sessão
-│   ├── FarmService.ts  # Gerenciamento de fazendas
-│   ├── SeedService.ts  # Smart Seeding
-│   ├── SiloService.ts  # Monitoramento do silo
+│   ├── AuthService.ts   # Login e obtenção de sessão
+│   ├── FarmService.ts   # Gerenciamento de fazendas
+│   ├── FuelService.ts   # Gerenciamento de combustível
+│   ├── SeedService.ts   # Smart Seeding
+│   ├── SiloService.ts   # Monitoramento do silo
 │   ├── MarketService.ts # Vendas no mercado
-│   └── TractorService.ts # Gerenciamento de tratores
+│   └── TractorService.ts # Gerenciamento de tratores e equipamentos
 ├── types/
-│   └── index.ts        # Interfaces TypeScript
+│   └── index.ts         # Interfaces TypeScript
 ├── utils/
-│   └── logger.ts       # Sistema de logs
-└── index.ts            # Entry point
+│   └── logger.ts        # Sistema de logs
+└── index.ts             # Entry point
+```
+
+---
+
+## 📊 Exemplo de Logs
+
+```
+[FarmBot] [INFO] 🔄 Iniciando ciclo - 13/01/2026, 11:00:00
+[FarmBot] [FUEL] ⛽ Combustível: 1,316L | Preço: $1,758/1000L
+[FarmBot] [TASK] 🚜 1 colheita(s) disponível(is)
+[FarmBot] [SUCCESS] ✅ harvesting iniciado em "Fazenda Norte" - Tempo estimado: 3600s
+[FarmBot] [SILO] 🌾 Silo Total: 220,000kg armazenados
+[FarmBot] [SILO] 🌾   - Canola: 127,000kg / 300,000kg (42.33%)
+[FarmBot] [SILO] 🌾   - Corn: 73,000kg / 300,000kg (24.33%)
+[FarmBot] [INFO] ✅ Ciclo concluído
 ```
 
 ---

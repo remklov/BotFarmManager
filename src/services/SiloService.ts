@@ -94,15 +94,28 @@ export class SiloService {
      * Loga status do silo
      */
     async logSiloStatus(): Promise<void> {
-        const capacity = await this.getSiloCapacity();
+        const products = await this.getStoredProducts();
+
+        // Calcular totais baseado na capacidade individual de cada grão
+        let totalStored = 0;
+        let totalCapacity = 0;
+
+        for (const product of products) {
+            const productCapacity = product.amount + product.remainingCapacity;
+            totalStored += product.amount;
+            totalCapacity += productCapacity;
+        }
+
+        const totalPct = totalCapacity > 0 ? (totalStored / totalCapacity) * 100 : 0;
+
         this.logger.silo(
-            `Silo: ${capacity.totalHolding.toLocaleString()}kg / ${capacity.capacity.toLocaleString()}kg (${capacity.pctFull.toFixed(2)}%)`
+            `Silo Total: ${totalStored.toLocaleString()}kg armazenados`
         );
 
-        const products = await this.getStoredProducts();
         for (const product of products) {
+            const productCapacity = product.amount + product.remainingCapacity;
             this.logger.silo(
-                `  - ${product.name}: ${product.amount.toLocaleString()}kg (${product.pctFull.toFixed(2)}%)`
+                `  - ${product.name}: ${product.amount.toLocaleString()}kg / ${productCapacity.toLocaleString()}kg (${product.pctFull.toFixed(2)}%)`
             );
         }
     }

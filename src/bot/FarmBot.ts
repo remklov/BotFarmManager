@@ -3,7 +3,7 @@
 // ============================================
 
 import { ApiClient } from '../api/client';
-import { FarmService, TractorService, SiloService, MarketService, SeedService } from '../services';
+import { FarmService, TractorService, SiloService, MarketService, SeedService, FuelService } from '../services';
 import { BotConfig, AvailableTask, BatchActionUnit } from '../types';
 import { Logger } from '../utils/logger';
 
@@ -14,6 +14,7 @@ export class FarmBot {
     private siloService: SiloService;
     private marketService: MarketService;
     private seedService: SeedService;
+    private fuelService: FuelService;
     private logger: Logger;
     private config: BotConfig;
     private isRunning: boolean = false;
@@ -30,6 +31,7 @@ export class FarmBot {
         this.siloService = new SiloService(this.api, this.logger);
         this.marketService = new MarketService(this.api, this.logger);
         this.seedService = new SeedService(this.api, this.logger);
+        this.fuelService = new FuelService(this.api, this.logger);
     }
 
     /**
@@ -78,6 +80,9 @@ export class FarmBot {
         this.logger.info(`🔄 Iniciando ciclo - ${new Date().toLocaleString('pt-BR')}`);
 
         try {
+            // 0. Verificar e comprar combustível se necessário
+            await this.fuelService.checkAndBuyFuel();
+
             // 1. Verificar e executar colheitas
             await this.checkAndExecuteHarvesting();
 
@@ -198,6 +203,19 @@ export class FarmBot {
                 this.logger.debugLog(
                     `Equipamento disponível é para ${equipment.opType}, mas tarefa é ${task.type}`
                 );
+            }
+
+            // Verificar tempo máximo de operação (6 horas = 21600 segundos)
+            const MAX_OPERATION_HOURS = 6;
+            const MAX_OPERATION_SECONDS = MAX_OPERATION_HOURS * 3600;
+
+            if (equipment.estimatedDuration > MAX_OPERATION_SECONDS) {
+                const estimatedHours = (equipment.estimatedDuration / 3600).toFixed(1);
+                this.logger.warn(
+                    `⏱️ Operação em "${task.farmlandName}" ignorada: tempo estimado de ${estimatedHours}h excede o limite de ${MAX_OPERATION_HOURS}h. ` +
+                    `Considere usar equipamento mais rápido (atual: ${equipment.haHour} ha/h).`
+                );
+                return false;
             }
 
             // Construir dados para a ação batch

@@ -533,3 +533,47 @@ export interface SeedInventory {
     kgPerHa: number;
 }
 
+// ============================================
+// Fuel Types
+// ============================================
+
+export interface FuelSilo {
+    siloHolding: number;
+    siloCapacity: number;
+    totalHolding: number;
+    remainingCapacityActual: number;
+    remainingCapacity: number;
+    holding: number;
+    pctFull: number;
+}
+
+export interface FuelHistoryEntry {
+    timestamp: number;
+    price: number;
+}
+
+export interface FuelSiloResponse extends BaseResponse {
+    canWatchAds: number;
+    hasLivestock: number;
+    fuelDiscount: number;
+    fuelSilo: FuelSilo;
+    increase: {
+        cost: number;
+        capacity: number;
+        newCapacity: number;
+    };
+    user: {
+        account: number;
+        points: number;
+    };
+    fuelCost: number;
+    fuelHistory: FuelHistoryEntry[];
+}
+
+export interface BuyFuelResponse extends BaseResponse {
+    success: number;
+    cost: number;
+    fuelSilo: FuelSilo;
+    amount: number;
+    checklist: boolean;
+}

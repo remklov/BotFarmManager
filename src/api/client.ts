@@ -15,6 +15,8 @@ import {
     FarmlandDetailsResponse,
     BatchActionResponse,
     BatchActionUnit,
+    FuelSiloResponse,
+    BuyFuelResponse,
 } from '../types';
 import { Logger } from '../utils/logger';
 
@@ -216,6 +218,48 @@ export class ApiClient {
         return response.data;
     }
 
+    /**
+     * Obtém tratores disponíveis para operação de seeding em um terreno específico
+     */
+    async getFarmlandActionSeed(farmlandId: number, farmId: number, area: number, complexityIndex: number): Promise<any> {
+        const formData = this.buildFormData({
+            farmlandId,
+            farmId,
+            area,
+            complexityIndex,
+        });
+
+        const response = await this.client.post(
+            '/farmland-action-seed.php',
+            formData,
+            { params: { farmlandId, farmId, area, complexityIndex } }
+        );
+
+        this.updateBT(response.data);
+        return response.data;
+    }
+
+    /**
+     * Obtém tratores disponíveis para operação de plowing em um terreno específico
+     */
+    async getFarmlandActionPlow(farmlandId: number, farmId: number, area: number, complexityIndex: number): Promise<any> {
+        const formData = this.buildFormData({
+            farmlandId,
+            farmId,
+            area,
+            complexityIndex,
+        });
+
+        const response = await this.client.post(
+            '/farmland-action-plow.php',
+            formData,
+            { params: { farmlandId, farmId, area, complexityIndex } }
+        );
+
+        this.updateBT(response.data);
+        return response.data;
+    }
+
     // ============================================
     // Action Endpoints
     // ============================================
@@ -347,6 +391,40 @@ export class ApiClient {
             '/market-seed-details.php',
             formData,
             { params: { action: 'buy', cropId, amount } }
+        );
+
+        this.updateBT(response.data);
+        return response.data;
+    }
+
+    // ============================================
+    // Fuel Endpoints
+    // ============================================
+
+    async getFuelSilo(): Promise<FuelSiloResponse> {
+        const formData = this.buildFormData({
+            type: 'fuel',
+        });
+
+        const response = await this.client.post<FuelSiloResponse>(
+            '/user-silo.php',
+            formData,
+            { params: { type: 'fuel' } }
+        );
+
+        this.updateBT(response.data);
+        return response.data;
+    }
+
+    async buyFuel(amount: number): Promise<BuyFuelResponse> {
+        const formData = this.buildFormData({
+            amount,
+        });
+
+        const response = await this.client.post<BuyFuelResponse>(
+            '/silo-fuel-buy.php',
+            formData,
+            { params: { amount } }
         );
 
         this.updateBT(response.data);

@@ -66,6 +66,10 @@ export class Logger {
     market(message: string): void {
         console.log(this.formatMessage('MARKET', `💰 ${message}`));
     }
+
+    fuel(message: string): void {
+        console.log(this.formatMessage('FUEL', `⛽ ${message}`));
+    }
 }
 
 export const logger = new Logger();

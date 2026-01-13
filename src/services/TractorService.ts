@@ -143,6 +143,8 @@ export class TractorService {
         tractorId: number;
         implementId?: number;
         opType: string;
+        haHour: number;
+        estimatedDuration: number; // em segundos
     } | null> {
         const details = await this.api.getFarmlandDetails(farmlandId);
 
@@ -158,37 +160,128 @@ export class TractorService {
             return null;
         }
 
-        this.logger.debugLog(`[Equipment] plowing.available: ${equipment.plowing?.data?.available}, units: ${JSON.stringify(equipment.plowing?.units)}`);
-        this.logger.debugLog(`[Equipment] seeding.available: ${equipment.seeding?.data?.available}, units: ${JSON.stringify(equipment.seeding?.units)}`);
-        this.logger.debugLog(`[Equipment] harvesting.available: ${equipment.harvesting?.data?.available}, units: ${JSON.stringify(equipment.harvesting?.units)}`);
-        this.logger.debugLog(`[Equipment] clearing.available: ${equipment.clearing?.data?.available}, units: ${JSON.stringify(equipment.clearing?.units)}`);
-
-        // Buscar lista de tratores disponíveis para associar com implementos
-        const tractorResponse = await this.api.getCultivatingTab();
-        const availableTractors = this.extractAvailableTractors(tractorResponse.tractors || {});
-        this.logger.debugLog(`[Tractors] Tratores disponíveis: ${JSON.stringify(availableTractors)}`);
-
-        // Se um opType específico foi solicitado, buscar esse primeiro
-        if (desiredOpType) {
-            const result = this.getEquipmentForOpType(equipment, desiredOpType, availableTractors, details.farmId);
-            if (result) {
-                this.logger.debugLog(`[Equipment] Encontrado equipamento para ${desiredOpType}: ${JSON.stringify(result)}`);
-                return result;
-            }
-            this.logger.debugLog(`[Equipment] Nenhum equipamento disponível para ${desiredOpType}`);
+        // Para seeding e plowing, usar o endpoint específico que retorna tratores com implementos
+        if (desiredOpType === 'seeding' || desiredOpType === 'plowing') {
+            return this.getEquipmentFromActionEndpoint(
+                desiredOpType,
+                farmlandId,
+                details.farmId,
+                details.area,
+                details.farmland.complexityIndex,
+                equipment
+            );
         }
 
-        // Fallback: tentar encontrar qualquer equipamento disponível
-        // Ordem de prioridade: harvesting -> clearing -> plowing -> seeding
+        // Para harvesting e clearing, usar a lógica antiga (eles têm id direto)
+        if (desiredOpType === 'harvesting' || desiredOpType === 'clearing') {
+            const opEquipment = equipment[desiredOpType];
+
+            if (!opEquipment?.data?.available || opEquipment.data.available === 0) {
+                this.logger.debugLog(`[Equipment] Nenhum equipamento de ${desiredOpType} disponível`);
+                return null;
+            }
+
+            const units = opEquipment.units;
+            if (!units || units.length === 0) {
+                this.logger.debugLog(`[Equipment] Nenhum unit de ${desiredOpType} encontrado`);
+                return null;
+            }
+
+            // Ordenar por haHour e pegar o melhor
+            const sortedUnits = [...units].sort((a, b) => (b.haHour || 0) - (a.haHour || 0));
+            const bestUnit = sortedUnits[0];
+            const tractorId = bestUnit.id || bestUnit.heavyId || 0;
+
+            if (tractorId === 0) {
+                this.logger.debugLog(`[Equipment] ${desiredOpType} não tem tractorId válido`);
+                return null;
+            }
+
+            this.logger.debugLog(`[Equipment] Selecionado para ${desiredOpType}: trator ${tractorId}, haHour ${bestUnit.haHour}`);
+
+            return {
+                tractorId,
+                opType: desiredOpType,
+                haHour: bestUnit.haHour || 0,
+                estimatedDuration: opEquipment.data.opDuration || 0,
+            };
+        }
+
+        // Se não especificou tipo, tentar todos em ordem
         const opOrder = ['harvesting', 'clearing', 'plowing', 'seeding'];
         for (const opType of opOrder) {
-            const result = this.getEquipmentForOpType(equipment, opType, availableTractors, details.farmId);
+            const result = await this.getEquipmentForFarmland(farmlandId, opType);
             if (result) {
                 return result;
             }
         }
 
         return null;
+    }
+
+    /**
+     * Busca equipamento usando os endpoints específicos farmland-action-seed/plow
+     * que retornam os tratores com implementos já associados
+     */
+    private async getEquipmentFromActionEndpoint(
+        opType: 'seeding' | 'plowing',
+        farmlandId: number,
+        farmId: number,
+        area: number,
+        complexityIndex: number,
+        equipment: any
+    ): Promise<{
+        tractorId: number;
+        implementId?: number;
+        opType: string;
+        haHour: number;
+        estimatedDuration: number;
+    } | null> {
+        try {
+            // Chamar o endpoint específico
+            const response = opType === 'seeding'
+                ? await this.api.getFarmlandActionSeed(farmlandId, farmId, area, complexityIndex)
+                : await this.api.getFarmlandActionPlow(farmlandId, farmId, area, complexityIndex);
+
+            this.logger.debugLog(`[${opType}] Resposta do endpoint: tractors=${response.tractors?.length || 0}`);
+
+            if (!response.tractors || response.tractors.length === 0) {
+                this.logger.debugLog(`[${opType}] Nenhum trator disponível`);
+                return null;
+            }
+
+            // Filtrar apenas tratores do tipo correto e que não estão pendentes
+            const availableTractors = response.tractors.filter((t: any) =>
+                t.type === opType && !t.isPending && t.hasImplement
+            );
+
+            if (availableTractors.length === 0) {
+                this.logger.warn(`[${opType}] Nenhum trator com implemento de ${opType} disponível`);
+                return null;
+            }
+
+            // Ordenar por haHour (maior = mais rápido)
+            availableTractors.sort((a: any, b: any) => (b.haHour || 0) - (a.haHour || 0));
+
+            const bestTractor = availableTractors[0];
+
+            this.logger.debugLog(`[${opType}] Tratores disponíveis ordenados: ${JSON.stringify(availableTractors.map((t: any) => ({ id: t.id, name: t.tractorName, haHour: t.haHour })))}`);
+            this.logger.debugLog(`[${opType}] Melhor trator: ${bestTractor.tractorName} (id: ${bestTractor.id}, haHour: ${bestTractor.haHour}, implement: ${bestTractor.implementId})`);
+
+            // Usar opDuration do equipment se disponível
+            const opDuration = equipment[opType]?.data?.opDuration || 0;
+
+            return {
+                tractorId: bestTractor.id,
+                implementId: bestTractor.implementId,
+                opType,
+                haHour: bestTractor.haHour,
+                estimatedDuration: opDuration,
+            };
+        } catch (error) {
+            this.logger.error(`Erro ao buscar equipamento de ${opType}`, error as Error);
+            return null;
+        }
     }
 
     /**
@@ -199,7 +292,7 @@ export class TractorService {
         opType: string,
         availableTractors: AvailableTractor[],
         farmId: number
-    ): { tractorId: number; implementId?: number; opType: string } | null {
+    ): { tractorId: number; implementId?: number; opType: string; haHour: number; estimatedDuration: number } | null {
         const opEquipment = equipment[opType];
 
         if (!opEquipment?.data?.available || opEquipment.data.available === 0) {
@@ -211,28 +304,38 @@ export class TractorService {
             return null;
         }
 
-        const unit = units[0];
+        // Ordenar units por haHour decrescente (maior = mais rápido = melhor)
+        const sortedUnits = [...units].sort((a, b) => (b.haHour || 0) - (a.haHour || 0));
+
+        this.logger.debugLog(`[Equipment] Units para ${opType} ordenados por haHour: ${JSON.stringify(sortedUnits.map(u => ({ id: u.id || u.heavyId, haHour: u.haHour })))}`);
+
+        // Selecionar o melhor equipamento (primeiro da lista ordenada)
+        const unit = sortedUnits[0];
 
         // Para harvesting e clearing, usar id ou heavyId diretamente
         let tractorId = unit.id || unit.heavyId || 0;
         const implementId = unit.implementId;
+        const unitHaHour = unit.haHour || 0;
 
         // Para seeding e plowing (que usam implementos), o tractorId vem da lista de tratores
         if (tractorId === 0 && implementId) {
-            // Buscar trator disponível para este tipo de operação na mesma farm
-            const tractor = availableTractors.find(t =>
-                t.opType === opType && t.farmId === farmId
-            );
+            // Buscar o melhor trator disponível para este tipo de operação na mesma farm
+            const farmTractors = availableTractors
+                .filter(t => t.opType === opType && t.farmId === farmId)
+                .sort((a, b) => b.haHour - a.haHour); // Ordenar por haHour decrescente
 
-            if (tractor) {
-                tractorId = tractor.id;
-                this.logger.debugLog(`[Equipment] Encontrado trator ${tractorId} para ${opType} via lista de tratores`);
+            if (farmTractors.length > 0) {
+                tractorId = farmTractors[0].id;
+                this.logger.debugLog(`[Equipment] Melhor trator ${tractorId} (${farmTractors[0].haHour} ha/h) para ${opType} via lista de tratores`);
             } else {
-                // Tentar qualquer trator do mesmo tipo em qualquer farm
-                const anyTractor = availableTractors.find(t => t.opType === opType);
-                if (anyTractor) {
-                    tractorId = anyTractor.id;
-                    this.logger.debugLog(`[Equipment] Usando trator ${tractorId} de outra farm para ${opType}`);
+                // Tentar o melhor trator do mesmo tipo em qualquer farm
+                const anyTractors = availableTractors
+                    .filter(t => t.opType === opType)
+                    .sort((a, b) => b.haHour - a.haHour);
+
+                if (anyTractors.length > 0) {
+                    tractorId = anyTractors[0].id;
+                    this.logger.debugLog(`[Equipment] Usando melhor trator ${tractorId} (${anyTractors[0].haHour} ha/h) de outra farm para ${opType}`);
                 }
             }
         }
@@ -242,10 +345,17 @@ export class TractorService {
             return null;
         }
 
+        // Usar opDuration da API ou calcular estimativa
+        const estimatedDuration = opEquipment.data.opDuration || 0;
+
+        this.logger.debugLog(`[Equipment] Selecionado para ${opType}: trator ${tractorId}, haHour ${unitHaHour}, duração estimada ${estimatedDuration}s (${(estimatedDuration / 3600).toFixed(1)}h)`);
+
         return {
             tractorId,
             implementId,
             opType,
+            haHour: unitHaHour,
+            estimatedDuration,
         };
     }
 
