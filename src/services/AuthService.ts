@@ -48,14 +48,14 @@ export class AuthService {
     }
 
     /**
-     * Realiza login usando um access_token do Android (guest token)
-     * O servidor responde com 302 redirect e um novo PHPSESSID no Set-Cookie
-     * @param accessToken O access_token do guest Android (formato: guest_android_...)
-     * @param appVersion Versão do app (padrão: 1.1.4)
-     * @returns O PHPSESSID da sessão autenticada
+     * Performs login using an Android access_token (guest token)
+     * The server responds with 302 redirect and a new PHPSESSID in Set-Cookie
+     * @param accessToken The Android guest access_token (format: guest_android_...)
+     * @param appVersion App version (default: 1.1.4)
+     * @returns The PHPSESSID of the authenticated session
      */
     async loginWithAndroidToken(accessToken: string, appVersion: string = '1.1.4'): Promise<string> {
-        this.logger.info('🤖 Fazendo login via Android token...');
+        this.logger.info('🤖 Logging in via Android token...');
 
         try {
             const params = new URLSearchParams({
@@ -74,38 +74,38 @@ export class AuthService {
                 validateStatus: (status: number) => status < 400 || status === 302,
             });
 
-            // Extrair o PHPSESSID da resposta
+            // Extract PHPSESSID from response
             const sessionId = this.extractSessionId(response.headers['set-cookie']);
 
             if (sessionId) {
-                this.logger.info(`✅ Login Android realizado com sucesso! Session ID: ${sessionId.substring(0, 8)}...`);
+                this.logger.info(`✅ Android login successful! Session ID: ${sessionId.substring(0, 8)}...`);
                 return sessionId;
             }
 
-            throw new Error('Não foi possível obter PHPSESSID do login Android. Token pode estar inválido.');
+            throw new Error('Could not obtain PHPSESSID from Android login. Token may be invalid.');
 
         } catch (error: unknown) {
             if (axios.isAxiosError(error)) {
                 if (error.response?.status === 401 || error.response?.status === 403) {
-                    throw new Error('Access token Android inválido.');
+                    throw new Error('Invalid Android access token.');
                 }
-                throw new Error(`Erro de conexão ao fazer login Android: ${error.message}`);
+                throw new Error(`Connection error during Android login: ${error.message}`);
             }
             throw error;
         }
     }
 
     /**
-     * Registra uma NOVA conta guest e faz login automaticamente.
-     * Não precisa de nenhuma credencial - o servidor gera um novo usuário a cada chamada.
-     * @param appVersion Versão do app (padrão: 1.1.4)
-     * @returns Objeto com accessToken (para uso futuro) e phpSessionId
+     * Registers a NEW guest account and logs in automatically.
+     * No credentials needed - the server generates a new user on each call.
+     * @param appVersion App version (default: 1.1.4)
+     * @returns Object with accessToken (for future use) and phpSessionId
      */
     async registerGuestAndLogin(appVersion: string = '1.1.4'): Promise<{ accessToken: string; phpSessionId: string; userId: number }> {
-        this.logger.info('🆕 Registrando nova conta guest...');
+        this.logger.info('🆕 Registering new guest account...');
 
         try {
-            // Passo 1: Chamar /app/auth.php para criar nova conta guest
+            // Step 1: Call /app/auth.php to create new guest account
             const authResponse = await axios.post(AUTH_URL, {
                 platform: 'android',
                 appVersion: appVersion,
@@ -120,15 +120,15 @@ export class AuthService {
             const authData = authResponse.data;
 
             if (!authData.success || !authData.access_token) {
-                throw new Error('Falha ao registrar conta guest. Resposta inválida do servidor.');
+                throw new Error('Failed to register guest account. Invalid server response.');
             }
 
             const accessToken = authData.access_token;
             const userId = authData.user_id;
 
-            this.logger.info(`✅ Conta guest criada! User ID: ${userId}, Token: ${accessToken.substring(0, 20)}...`);
+            this.logger.info(`✅ Guest account created! User ID: ${userId}, Token: ${accessToken.substring(0, 20)}...`);
 
-            // Passo 2: Usar o access_token para obter PHPSESSID
+            // Step 2: Use access_token to obtain PHPSESSID
             const phpSessionId = await this.loginWithAndroidToken(accessToken, appVersion);
 
             return {
@@ -139,23 +139,23 @@ export class AuthService {
 
         } catch (error: unknown) {
             if (axios.isAxiosError(error)) {
-                throw new Error(`Erro ao registrar conta guest: ${error.message}`);
+                throw new Error(`Error registering guest account: ${error.message}`);
             }
             throw error;
         }
     }
 
     /**
-     * Realiza login no sistema e retorna o PHPSESSID
-     * @param email Email do usuário
-     * @param password Senha do usuário
-     * @returns O PHPSESSID da sessão autenticada
+     * Performs login to the system and returns PHPSESSID
+     * @param email User email
+     * @param password User password
+     * @returns The PHPSESSID of the authenticated session
      */
     async login(email: string, password: string): Promise<string> {
-        this.logger.info('🔐 Fazendo login automático...');
+        this.logger.info('🔐 Performing automatic login...');
 
         try {
-            // Primeiro, fazer uma requisição para obter um PHPSESSID inicial
+            // First, make a request to get an initial PHPSESSID
             const initialResponse = await axios.get('https://farm-app.trophyapi.com/index-login.php', {
                 headers: {
                     'User-Agent': DEFAULT_HEADERS['User-Agent'],
@@ -165,16 +165,16 @@ export class AuthService {
                 validateStatus: (status) => status < 400,
             });
 
-            // Extrair PHPSESSID inicial do Set-Cookie
+            // Extract initial PHPSESSID from Set-Cookie
             let initialSessionId = this.extractSessionId(initialResponse.headers['set-cookie']);
 
             if (!initialSessionId) {
-                // Se não veio no header, pode já estar em cookie
-                this.logger.debugLog('Nenhum PHPSESSID inicial encontrado, continuando sem...');
+                // If not in header, may already be in cookie
+                this.logger.debugLog('No initial PHPSESSID found, continuing without...');
                 initialSessionId = '';
             }
 
-            // Fazer o login com as credenciais
+            // Perform login with credentials
             const formData = new URLSearchParams();
             formData.append('email', email);
             formData.append('password', password);
@@ -188,41 +188,41 @@ export class AuthService {
                 validateStatus: (status) => status < 400 || status === 302,
             });
 
-            // Extrair o PHPSESSID da resposta de login
+            // Extract PHPSESSID from login response
             const sessionId = this.extractSessionId(loginResponse.headers['set-cookie']);
 
             if (sessionId) {
-                this.logger.info(`✅ Login realizado com sucesso! Session ID: ${sessionId.substring(0, 8)}...`);
+                this.logger.info(`✅ Login successful! Session ID: ${sessionId.substring(0, 8)}...`);
                 return sessionId;
             }
 
-            // Se não veio novo cookie, usar o inicial (a sessão foi autenticada)
+            // If no new cookie, use initial one (session was authenticated)
             if (initialSessionId) {
-                this.logger.info(`✅ Login realizado com sucesso! Usando sessão inicial: ${initialSessionId.substring(0, 8)}...`);
+                this.logger.info(`✅ Login successful! Using initial session: ${initialSessionId.substring(0, 8)}...`);
                 return initialSessionId;
             }
 
-            // Verificar se houve erro na resposta
+            // Check if there was an error in the response
             const responseData = typeof loginResponse.data === 'string' ? loginResponse.data : '';
             if (responseData.includes('error') || responseData.includes('Invalid')) {
-                throw new Error('Credenciais inválidas. Verifique email e senha.');
+                throw new Error('Invalid credentials. Check email and password.');
             }
 
-            throw new Error('Não foi possível obter PHPSESSID após login. Verifique as credenciais.');
+            throw new Error('Could not obtain PHPSESSID after login. Check credentials.');
 
         } catch (error) {
             if (axios.isAxiosError(error)) {
                 if (error.response?.status === 401 || error.response?.status === 403) {
-                    throw new Error('Credenciais inválidas. Verifique email e senha.');
+                    throw new Error('Invalid credentials. Check email and password.');
                 }
-                throw new Error(`Erro de conexão ao fazer login: ${error.message}`);
+                throw new Error(`Connection error during login: ${error.message}`);
             }
             throw error;
         }
     }
 
     /**
-     * Extrai o PHPSESSID do header Set-Cookie
+     * Extracts PHPSESSID from Set-Cookie header
      */
     private extractSessionId(setCookieHeader: string[] | undefined): string | null {
         if (!setCookieHeader) {

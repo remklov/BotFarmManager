@@ -26,7 +26,7 @@ export class MarketService {
     }
 
     /**
-     * Obtém valores atuais de todos os produtos no mercado
+     * Gets current values of all products in the market
      */
     async getCropValues(): Promise<Record<string, CropValue>> {
         const response = await this.api.getCropValues();
@@ -34,7 +34,7 @@ export class MarketService {
     }
 
     /**
-     * Obtém o valor de um produto específico
+     * Gets the value of a specific product
      */
     async getCropValue(cropId: number): Promise<CropValue | null> {
         const values = await this.getCropValues();
@@ -42,7 +42,7 @@ export class MarketService {
     }
 
     /**
-     * Vende todo o estoque de um produto
+     * Sells all stock of a product
      */
     async sellProduct(cropId: number, productName?: string): Promise<SellResult> {
         try {
@@ -59,15 +59,15 @@ export class MarketService {
 
             if (result.success) {
                 this.logger.market(
-                    `Vendido ${result.amountSold.toLocaleString()}kg de ${result.productName} por $${result.income.toLocaleString()}`
+                    `Sold ${result.amountSold.toLocaleString()}kg of ${result.productName} for $${result.income.toLocaleString()}`
                 );
             } else {
-                this.logger.warn(`Falha ao vender ${result.productName}`);
+                this.logger.warn(`Failed to sell ${result.productName}`);
             }
 
             return result;
         } catch (error) {
-            this.logger.error(`Erro ao vender produto ${cropId}`, error as Error);
+            this.logger.error(`Error selling product ${cropId}`, error as Error);
             return {
                 success: false,
                 productId: cropId,
@@ -80,7 +80,7 @@ export class MarketService {
     }
 
     /**
-     * Vende múltiplos produtos
+     * Sells multiple products
      */
     async sellMultipleProducts(
         products: Array<{ id: number; name: string }>
@@ -91,7 +91,7 @@ export class MarketService {
             const result = await this.sellProduct(product.id, product.name);
             results.push(result);
 
-            // Pequeno delay entre vendas para evitar rate limiting
+            // Small delay between sales to avoid rate limiting
             await this.delay(500);
         }
 
@@ -99,7 +99,7 @@ export class MarketService {
     }
 
     /**
-     * Calcula o valor total que seria obtido vendendo um produto
+     * Calculates total value that would be obtained by selling a product
      */
     async estimateSaleValue(cropId: number, amount: number): Promise<number> {
         const value = await this.getCropValue(cropId);
@@ -110,7 +110,7 @@ export class MarketService {
     }
 
     /**
-     * Verifica se é um bom momento para vender (preço subindo)
+     * Checks if it's a good time to sell (price rising)
      */
     async isPriceIncreasing(cropId: number): Promise<boolean> {
         const value = await this.getCropValue(cropId);
@@ -118,7 +118,7 @@ export class MarketService {
     }
 
     /**
-     * Obtém histórico de preços de um produto
+     * Gets price history of a product
      */
     async getPriceHistory(cropId: number): Promise<number[]> {
         const response = await this.api.getCropValues();
@@ -126,7 +126,7 @@ export class MarketService {
     }
 
     /**
-     * Resumo de todas as vendas
+     * Summary of all sales
      */
     summarizeSales(results: SellResult[]): {
         totalSold: number;

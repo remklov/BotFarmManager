@@ -88,6 +88,7 @@ export interface FarmFarmlands {
     raw?: FarmlandCategory;
     cleared?: FarmlandCategory;
     plowed?: FarmlandCategory;
+    fertilized?: FarmlandCategory;
     seeded?: FarmlandCategory;
     growing?: FarmlandCategory;
     matured?: FarmlandCategory;
@@ -441,6 +442,7 @@ export interface BotConfig {
     debug: boolean;
     maxTractorsPerOp: number; // Máximo de tratores por operação (default: 4)
     maxIdleTimeMinutes: number; // Tempo máximo que um campo pode ficar ocioso (default: 30)
+    forceSeedName?: string;
 }
 
 // ============================================

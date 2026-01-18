@@ -3,113 +3,349 @@
 // ============================================
 
 import 'dotenv/config';
+import * as readline from 'readline';
 import { FarmBot } from './bot/FarmBot';
 import { BotConfig } from './types';
 import { Logger } from './utils/logger';
 import { AuthService } from './services/AuthService';
 
 const logger = new Logger('Main');
+let currentBot: FarmBot | null = null;
+let rl: readline.Interface | null = null;
 
-// Carregar configuração do ambiente
-async function loadConfig(): Promise<BotConfig> {
+// Display menu options
+function displayMenu(): void {
+    console.log('\n═══════════════════════════════════════════════════════');
+    console.log('   🌾 Farm Manager Bot v1.0.0');
+    console.log('   Automating your farms with intelligence!');
+    console.log('═══════════════════════════════════════════════════════\n');
+    console.log('Please select an option:');
+    console.log('  1. Test Authentication');
+    console.log('  2. Run Bot');
+    console.log('  3. Test Harvesting');
+    console.log('  4. Test Seeding');
+    console.log('  5. Test Plowing');
+    console.log('  6. Test Fertilizing');
+    console.log('  7. Exit');
+    console.log('');
+}
+
+// Load environment configuration
+async function loadConfig(): Promise<BotConfig | null> {
     const email = process.env.FARM_EMAIL;
     const password = process.env.FARM_PASSWORD;
     const androidToken = process.env.ANDROID_ACCESS_TOKEN;
     const manualSessionId = process.env.PHPSESSID;
     const createNewGuest = process.env.CREATE_NEW_GUEST === 'true';
+    const forceSeedName = process.env.FORCE_SEED_NAME;
 
     let phpSessionId: string | undefined;
     let savedAccessToken: string | undefined;
 
-    // Prioridade: 1) login email/senha, 2) Android token, 3) sessão manual, 4) criar nova conta guest
+    // Priority: 1) email/password login, 2) Android token, 3) manual session, 4) create new guest account
     if (email && password) {
         const authService = new AuthService();
         try {
             phpSessionId = await authService.login(email, password);
         } catch (error) {
-            logger.error('Falha no login automático', error as Error);
-            process.exit(1);
+            logger.error('Automatic login failed', error as Error);
+            return null;
         }
     } else if (androidToken) {
         const authService = new AuthService();
         try {
-            logger.info('🤖 Tentando login via Android token...');
+            logger.info('🤖 Attempting login via Android token...');
             phpSessionId = await authService.loginWithAndroidToken(androidToken);
             savedAccessToken = androidToken;
         } catch (error) {
-            logger.error('Falha no login via Android token', error as Error);
-            process.exit(1);
+            logger.error('Login via Android token failed', error as Error);
+            return null;
         }
     } else if (manualSessionId) {
-        logger.info('📋 Usando PHPSESSID manual do .env');
+        logger.info('📋 Using manual PHPSESSID from .env');
         phpSessionId = manualSessionId;
     } else if (createNewGuest) {
         const authService = new AuthService();
         try {
-            logger.info('🆕 Criando nova conta guest...');
+            logger.info('🆕 Creating new guest account...');
             const result = await authService.registerGuestAndLogin();
             phpSessionId = result.phpSessionId;
             savedAccessToken = result.accessToken;
-            logger.info(`🎮 Nova conta criada! User ID: ${result.userId}`);
-            logger.info(`💾 Guarde o token para uso futuro: ${result.accessToken}`);
+            logger.info(`🎮 New account created! User ID: ${result.userId}`);
+            logger.info(`💾 Save the token for future use: ${result.accessToken}`);
         } catch (error) {
-            logger.error('Falha ao criar conta guest', error as Error);
-            process.exit(1);
+            logger.error('Failed to create guest account', error as Error);
+            return null;
         }
     } else {
-        logger.error('❌ Nenhuma credencial configurada!');
-        logger.error('Opções disponíveis:');
-        logger.error('  1. FARM_EMAIL + FARM_PASSWORD (login com conta)');
-        logger.error('  2. ANDROID_ACCESS_TOKEN (token do app Android)');
-        logger.error('  3. PHPSESSID (sessão manual)');
-        logger.error('  4. CREATE_NEW_GUEST=true (criar nova conta automaticamente)');
-        process.exit(1);
+        logger.error('❌ No credentials configured!');
+        logger.error('Available options:');
+        logger.error('  1. FARM_EMAIL + FARM_PASSWORD (login with account)');
+        logger.error('  2. ANDROID_ACCESS_TOKEN (Android app token)');
+        logger.error('  3. PHPSESSID (manual session)');
+        logger.error('  4. CREATE_NEW_GUEST=true (create new account automatically)');
+        return null;
     }
 
     return {
         phpSessionId,
         credentials: email && password ? { email, password } : undefined,
-        androidToken: savedAccessToken, // Guardar para possível re-autenticação
+        androidToken: savedAccessToken, // Save for possible re-authentication
         checkIntervalMs: parseInt(process.env.CHECK_INTERVAL_MS || '120000', 10),
         siloSellThreshold: parseInt(process.env.SILO_SELL_THRESHOLD || '80', 10),
         debug: process.env.DEBUG === 'true',
         maxTractorsPerOp: parseInt(process.env.MAX_TRACTORS_PER_OP || '4', 10),
         maxIdleTimeMinutes: parseInt(process.env.MAX_IDLE_TIME_MINUTES || '30', 10),
+        forceSeedName: forceSeedName || undefined,
     };
 }
 
-// Função principal
-async function main(): Promise<void> {
-    logger.info('═══════════════════════════════════════════════════════');
-    logger.info('   🌾 Farm Manager Bot v1.0.0');
-    logger.info('   Automatizando suas fazendas com inteligência!');
-    logger.info('═══════════════════════════════════════════════════════');
-
+// Test authentication
+async function testAuthentication(): Promise<void> {
+    logger.info('🔐 Testing authentication...\n');
+    
     const config = await loadConfig();
+    
+    if (!config || !config.phpSessionId) {
+        logger.error('❌ Authentication failed - no valid session obtained');
+        return;
+    }
+    
+    logger.success('✅ Authentication successful!');
+    logger.info(`Session ID: ${config.phpSessionId.substring(0, 8)}...`);
+    
+    if (config.androidToken) {
+        logger.info(`Android Token: ${config.androidToken.substring(0, 20)}...`);
+    }
+    
+    if (config.credentials) {
+        logger.info(`Logged in with email: ${config.credentials.email}`);
+    }
+    
+    logger.info('\n✅ Authentication test completed');
+}
+
+// Test harvesting
+async function testHarvesting(): Promise<void> {
+    logger.info('🌾 Testing harvesting...\n');
+    
+    const config = await loadConfig();
+    
+    if (!config || !config.phpSessionId) {
+        logger.error('❌ Cannot test harvesting - authentication failed');
+        return;
+    }
+    
     logger.info(`Debug mode: ${config.debug ? 'ON' : 'OFF'}`);
-
+    
     const bot = new FarmBot(config);
-
-    // Graceful shutdown
-    const shutdown = () => {
-        logger.info('\n📴 Recebido sinal de encerramento...');
-        bot.stop();
-        process.exit(0);
-    };
-
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
-
+    
     try {
-        await bot.start();
+        await bot.testHarvesting();
+        logger.info('\n✅ Harvesting test completed');
     } catch (error) {
-        logger.error('Erro fatal ao iniciar bot', error as Error);
-        process.exit(1);
+        logger.error('Error during harvesting test', error as Error);
     }
 }
 
-// Executar
+// Test seeding
+async function testSeeding(): Promise<void> {
+    logger.info('🌱 Testing seeding...\n');
+    
+    const config = await loadConfig();
+    
+    if (!config || !config.phpSessionId) {
+        logger.error('❌ Cannot test seeding - authentication failed');
+        return;
+    }
+    
+    logger.info(`Debug mode: ${config.debug ? 'ON' : 'OFF'}`);
+    
+    const bot = new FarmBot(config);
+    
+    try {
+        await bot.testSeeding();
+        logger.info('\n✅ Seeding test completed');
+    } catch (error) {
+        logger.error('Error during seeding test', error as Error);
+    }
+}
+
+// Test plowing
+async function testPlowing(): Promise<void> {
+    logger.info('🚜 Testing plowing...\n');
+    
+    const config = await loadConfig();
+    
+    if (!config || !config.phpSessionId) {
+        logger.error('❌ Cannot test plowing - authentication failed');
+        return;
+    }
+    
+    logger.info(`Debug mode: ${config.debug ? 'ON' : 'OFF'}`);
+    
+    const bot = new FarmBot(config);
+    
+    try {
+        await bot.testPlowing();
+        logger.info('\n✅ Plowing test completed');
+    } catch (error) {
+        logger.error('Error during plowing test', error as Error);
+    }
+}
+
+// Test fertilizing
+async function testFertilizing(): Promise<void> {
+    logger.info('🔬 Testing fertilizing...\n');
+    
+    const config = await loadConfig();
+    
+    if (!config || !config.phpSessionId) {
+        logger.error('❌ Cannot test fertilizing - authentication failed');
+        return;
+    }
+    
+    logger.info(`Debug mode: ${config.debug ? 'ON' : 'OFF'}`);
+    
+    const bot = new FarmBot(config);
+    
+    try {
+        await bot.testFertilizing();
+        logger.info('\n✅ Fertilizing test completed');
+    } catch (error) {
+        logger.error('Error during fertilizing test', error as Error);
+    }
+}
+
+// Run bot
+async function runBot(): Promise<void> {
+    logger.info('🚀 Starting Farm Manager Bot...\n');
+    
+    const config = await loadConfig();
+    
+    if (!config || !config.phpSessionId) {
+        logger.error('❌ Cannot start bot - authentication failed');
+        return;
+    }
+    
+    logger.info(`Debug mode: ${config.debug ? 'ON' : 'OFF'}`);
+    
+    // Pause readline interface while bot is running
+    if (rl) {
+        rl.pause();
+    }
+    
+    currentBot = new FarmBot(config);
+    
+    // Graceful shutdown handler for bot
+    const shutdown = () => {
+        logger.info('\n📴 Received shutdown signal...');
+        if (currentBot) {
+            currentBot.stop();
+            currentBot = null;
+        }
+        logger.info('Bot stopped. Returning to menu...\n');
+        
+        // Resume readline interface
+        if (rl) {
+            rl.resume();
+        }
+        
+        showMenu();
+    };
+    
+    // Remove any existing handlers
+    process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGTERM');
+    
+    // Set new handlers
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+    
+    try {
+        await currentBot.start();
+    } catch (error) {
+        logger.error('Fatal error starting bot', error as Error);
+        currentBot = null;
+        
+        // Resume readline interface on error
+        if (rl) {
+            rl.resume();
+        }
+    }
+}
+
+// Handle menu selection
+async function handleMenuSelection(choice: string): Promise<void> {
+    const trimmedChoice = choice.trim();
+    
+    switch (trimmedChoice) {
+        case '1':
+            await testAuthentication();
+            showMenu();
+            break;
+        case '2':
+            await runBot();
+            showMenu();
+            break;
+        case '3':
+            await testHarvesting();
+            showMenu();
+            break;
+        case '4':
+            await testSeeding();
+            showMenu();
+            break;
+        case '5':
+            await testPlowing();
+            showMenu();
+            break;
+        case '6':
+            await testFertilizing();
+            showMenu();
+            break;
+        case '7':
+            logger.info('👋 Goodbye!');
+            if (rl) {
+                rl.close();
+            }
+            process.exit(0);
+            break;
+        default:
+            logger.warn(`Invalid option: ${trimmedChoice}`);
+            logger.info('Please select 1, 2, 3, 4, 5, 6, or 7');
+            showMenu();
+            break;
+    }
+}
+
+// Show menu and wait for input
+function showMenu(): void {
+    if (!rl) {
+        rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+    }
+    
+    displayMenu();
+    
+    rl.question('Enter your choice: ', async (answer) => {
+        await handleMenuSelection(answer);
+    });
+}
+
+// Main function
+async function main(): Promise<void> {
+    // Show menu on startup
+    showMenu();
+}
+
+// Execute
 main().catch((error) => {
-    logger.error('Erro não tratado', error);
+    logger.error('Unhandled error', error);
+    if (rl) {
+        rl.close();
+    }
     process.exit(1);
 });

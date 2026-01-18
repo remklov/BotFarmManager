@@ -24,7 +24,7 @@ export class TractorService {
     }
 
     /**
-     * Obtém todos os tratores disponíveis (não em uso) de todas as farms
+     * Gets all available tractors (not in use) from all farms
      */
     async getAvailableTractors(): Promise<AvailableTractor[]> {
         const response = await this.api.getCultivatingTab();
@@ -32,7 +32,7 @@ export class TractorService {
     }
 
     /**
-     * Obtém tratores disponíveis para um tipo de operação específico
+     * Gets available tractors for a specific operation type
      */
     async getTractorsForOperation(opType: OperationType): Promise<AvailableTractor[]> {
         const allTractors = await this.getAvailableTractors();
@@ -40,7 +40,7 @@ export class TractorService {
     }
 
     /**
-     * Obtém tratores disponíveis em uma farm específica
+     * Gets available tractors in a specific farm
      */
     async getTractorsInFarm(farmId: number): Promise<AvailableTractor[]> {
         const allTractors = await this.getAvailableTractors();
@@ -48,7 +48,7 @@ export class TractorService {
     }
 
     /**
-     * Extrai tratores disponíveis da resposta da API
+     * Extracts available tractors from API response
      */
     private extractAvailableTractors(
         tractors: Record<string, FarmTractors>
@@ -56,7 +56,7 @@ export class TractorService {
         const available: AvailableTractor[] = [];
 
         for (const [farmId, farmTractors] of Object.entries(tractors)) {
-            // Verificar tratores de plowing
+            // Check plowing tractors
             if (farmTractors.plowing) {
                 for (const [id, tractor] of Object.entries(farmTractors.plowing.data)) {
                     if (tractor.inUse === 0) {
@@ -70,7 +70,7 @@ export class TractorService {
                 }
             }
 
-            // Verificar tratores de clearing
+            // Check clearing tractors
             if (farmTractors.clearing) {
                 for (const [id, tractor] of Object.entries(farmTractors.clearing.data)) {
                     if (tractor.inUse === 0) {
@@ -84,7 +84,7 @@ export class TractorService {
                 }
             }
 
-            // Verificar tratores de seeding
+            // Check seeding tractors
             if (farmTractors.seeding) {
                 for (const [id, tractor] of Object.entries(farmTractors.seeding.data)) {
                     if (tractor.inUse === 0) {
@@ -98,7 +98,7 @@ export class TractorService {
                 }
             }
 
-            // Verificar tratores de harvesting
+            // Check harvesting tractors
             if (farmTractors.harvesting) {
                 for (const [id, tractor] of Object.entries(farmTractors.harvesting.data)) {
                     if (tractor.inUse === 0) {
@@ -117,7 +117,7 @@ export class TractorService {
     }
 
     /**
-     * Busca o melhor trator disponível para uma operação em uma farm
+     * Searches for the best available tractor for an operation in a farm
      */
     async getBestTractorForTask(
         farmId: number,
@@ -130,37 +130,37 @@ export class TractorService {
             return null;
         }
 
-        // Retorna o trator com maior haHour (mais rápido)
+        // Returns the tractor with highest haHour (fastest)
         return compatibleTractors.reduce((best, current) =>
             current.haHour > best.haHour ? current : best
         );
     }
 
     /**
-     * Obtém detalhes de equipamento para uma fazenda para uma operação específica
+     * Gets equipment details for a farm for a specific operation
      */
     async getEquipmentForFarmland(farmlandId: number, desiredOpType?: string): Promise<{
         tractorId: number;
         implementId?: number;
         opType: string;
         haHour: number;
-        estimatedDuration: number; // em segundos
+        estimatedDuration: number; // in seconds
     } | null> {
         const details = await this.api.getFarmlandDetails(farmlandId);
 
-        // Remover geometry do log (muito grande)
+        // Remove geometry from log (too large)
         const { geometry, ...detailsWithoutGeometry } = details as any;
-        this.logger.debugLog(`[FarmlandDetails] Response para farmlandId ${farmlandId}: ${JSON.stringify(detailsWithoutGeometry, null, 2)}`);
+        this.logger.debugLog(`[FarmlandDetails] Response for farmlandId ${farmlandId}: ${JSON.stringify(detailsWithoutGeometry, null, 2)}`);
 
-        // Verificar qual operação está disponível e retornar o equipamento
+        // Check which operation is available and return equipment
         const equipment = details.equipment;
 
         if (!equipment) {
-            this.logger.debugLog('[FarmlandDetails] Nenhum equipamento encontrado');
+            this.logger.debugLog('[FarmlandDetails] No equipment found');
             return null;
         }
 
-        // Para seeding e plowing, usar o endpoint específico que retorna tratores com implementos
+        // For seeding and plowing, use the specific endpoint that returns tractors with implements
         if (desiredOpType === 'seeding' || desiredOpType === 'plowing') {
             return this.getEquipmentFromActionEndpoint(
                 desiredOpType,
@@ -172,32 +172,32 @@ export class TractorService {
             );
         }
 
-        // Para harvesting e clearing, usar a lógica antiga (eles têm id direto)
+        // For harvesting and clearing, use old logic (they have direct id)
         if (desiredOpType === 'harvesting' || desiredOpType === 'clearing') {
             const opEquipment = equipment[desiredOpType];
 
             if (!opEquipment?.data?.available || opEquipment.data.available === 0) {
-                this.logger.debugLog(`[Equipment] Nenhum equipamento de ${desiredOpType} disponível`);
+                this.logger.debugLog(`[Equipment] No ${desiredOpType} equipment available`);
                 return null;
             }
 
             const units = opEquipment.units;
             if (!units || units.length === 0) {
-                this.logger.debugLog(`[Equipment] Nenhum unit de ${desiredOpType} encontrado`);
+                this.logger.debugLog(`[Equipment] No ${desiredOpType} units found`);
                 return null;
             }
 
-            // Ordenar por haHour e pegar o melhor
+            // Sort by haHour and get the best
             const sortedUnits = [...units].sort((a, b) => (b.haHour || 0) - (a.haHour || 0));
             const bestUnit = sortedUnits[0];
             const tractorId = bestUnit.id || bestUnit.heavyId || 0;
 
             if (tractorId === 0) {
-                this.logger.debugLog(`[Equipment] ${desiredOpType} não tem tractorId válido`);
+                this.logger.debugLog(`[Equipment] ${desiredOpType} does not have valid tractorId`);
                 return null;
             }
 
-            this.logger.debugLog(`[Equipment] Selecionado para ${desiredOpType}: trator ${tractorId}, haHour ${bestUnit.haHour}`);
+            this.logger.debugLog(`[Equipment] Selected for ${desiredOpType}: tractor ${tractorId}, haHour ${bestUnit.haHour}`);
 
             return {
                 tractorId,
@@ -207,7 +207,7 @@ export class TractorService {
             };
         }
 
-        // Se não especificou tipo, tentar todos em ordem
+        // If type not specified, try all in order
         const opOrder = ['harvesting', 'clearing', 'plowing', 'seeding'];
         for (const opType of opOrder) {
             const result = await this.getEquipmentForFarmland(farmlandId, opType);
@@ -220,8 +220,8 @@ export class TractorService {
     }
 
     /**
-     * Busca equipamento usando os endpoints específicos farmland-action-seed/plow
-     * que retornam os tratores com implementos já associados
+     * Searches for equipment using specific endpoints farmland-action-seed/plow
+     * that return tractors with implements already associated
      */
     private async getEquipmentFromActionEndpoint(
         opType: 'seeding' | 'plowing',
@@ -238,37 +238,37 @@ export class TractorService {
         estimatedDuration: number;
     } | null> {
         try {
-            // Chamar o endpoint específico
+            // Call the specific endpoint
             const response = opType === 'seeding'
                 ? await this.api.getFarmlandActionSeed(farmlandId, farmId, area, complexityIndex)
                 : await this.api.getFarmlandActionPlow(farmlandId, farmId, area, complexityIndex);
 
-            this.logger.debugLog(`[${opType}] Resposta do endpoint: tractors=${response.tractors?.length || 0}`);
+            this.logger.debugLog(`[${opType}] Endpoint response: tractors=${response.tractors?.length || 0}`);
 
             if (!response.tractors || response.tractors.length === 0) {
-                this.logger.debugLog(`[${opType}] Nenhum trator disponível`);
+                this.logger.debugLog(`[${opType}] No tractors available`);
                 return null;
             }
 
-            // Filtrar apenas tratores do tipo correto e que não estão pendentes
+            // Filter only tractors of correct type and not pending
             const availableTractors = response.tractors.filter((t: any) =>
                 t.type === opType && !t.isPending && t.hasImplement
             );
 
             if (availableTractors.length === 0) {
-                this.logger.warn(`[${opType}] Nenhum trator com implemento de ${opType} disponível`);
+                this.logger.warn(`[${opType}] No tractors with ${opType} implement available`);
                 return null;
             }
 
-            // Ordenar por haHour (maior = mais rápido)
+            // Sort by haHour (highest = fastest)
             availableTractors.sort((a: any, b: any) => (b.haHour || 0) - (a.haHour || 0));
 
             const bestTractor = availableTractors[0];
 
-            this.logger.debugLog(`[${opType}] Tratores disponíveis ordenados: ${JSON.stringify(availableTractors.map((t: any) => ({ id: t.id, name: t.tractorName, haHour: t.haHour })))}`);
-            this.logger.debugLog(`[${opType}] Melhor trator: ${bestTractor.tractorName} (id: ${bestTractor.id}, haHour: ${bestTractor.haHour}, implement: ${bestTractor.implementId})`);
+            this.logger.debugLog(`[${opType}] Available tractors sorted: ${JSON.stringify(availableTractors.map((t: any) => ({ id: t.id, name: t.tractorName, haHour: t.haHour })))}`);
+            this.logger.debugLog(`[${opType}] Best tractor: ${bestTractor.tractorName} (id: ${bestTractor.id}, haHour: ${bestTractor.haHour}, implement: ${bestTractor.implementId})`);
 
-            // Usar opDuration do equipment se disponível
+            // Use opDuration from equipment if available
             const opDuration = equipment[opType]?.data?.opDuration || 0;
 
             return {
@@ -279,13 +279,13 @@ export class TractorService {
                 estimatedDuration: opDuration,
             };
         } catch (error) {
-            this.logger.error(`Erro ao buscar equipamento de ${opType}`, error as Error);
+            this.logger.error(`Error searching for ${opType} equipment`, error as Error);
             return null;
         }
     }
 
     /**
-     * Extrai equipamento para um tipo de operação específico
+     * Extracts equipment for a specific operation type
      */
     private getEquipmentForOpType(
         equipment: any,
@@ -304,51 +304,51 @@ export class TractorService {
             return null;
         }
 
-        // Ordenar units por haHour decrescente (maior = mais rápido = melhor)
+        // Sort units by haHour descending (highest = fastest = best)
         const sortedUnits = [...units].sort((a, b) => (b.haHour || 0) - (a.haHour || 0));
 
-        this.logger.debugLog(`[Equipment] Units para ${opType} ordenados por haHour: ${JSON.stringify(sortedUnits.map(u => ({ id: u.id || u.heavyId, haHour: u.haHour })))}`);
+        this.logger.debugLog(`[Equipment] Units for ${opType} sorted by haHour: ${JSON.stringify(sortedUnits.map(u => ({ id: u.id || u.heavyId, haHour: u.haHour })))}`);
 
-        // Selecionar o melhor equipamento (primeiro da lista ordenada)
+        // Select the best equipment (first in sorted list)
         const unit = sortedUnits[0];
 
-        // Para harvesting e clearing, usar id ou heavyId diretamente
+        // For harvesting and clearing, use id or heavyId directly
         let tractorId = unit.id || unit.heavyId || 0;
         const implementId = unit.implementId;
         const unitHaHour = unit.haHour || 0;
 
-        // Para seeding e plowing (que usam implementos), o tractorId vem da lista de tratores
+        // For seeding and plowing (which use implements), tractorId comes from tractor list
         if (tractorId === 0 && implementId) {
-            // Buscar o melhor trator disponível para este tipo de operação na mesma farm
+            // Search for the best available tractor for this operation type in the same farm
             const farmTractors = availableTractors
                 .filter(t => t.opType === opType && t.farmId === farmId)
-                .sort((a, b) => b.haHour - a.haHour); // Ordenar por haHour decrescente
+                .sort((a, b) => b.haHour - a.haHour); // Sort by haHour descending
 
             if (farmTractors.length > 0) {
                 tractorId = farmTractors[0].id;
-                this.logger.debugLog(`[Equipment] Melhor trator ${tractorId} (${farmTractors[0].haHour} ha/h) para ${opType} via lista de tratores`);
+                this.logger.debugLog(`[Equipment] Best tractor ${tractorId} (${farmTractors[0].haHour} ha/h) for ${opType} via tractor list`);
             } else {
-                // Tentar o melhor trator do mesmo tipo em qualquer farm
+                // Try the best tractor of the same type in any farm
                 const anyTractors = availableTractors
                     .filter(t => t.opType === opType)
                     .sort((a, b) => b.haHour - a.haHour);
 
                 if (anyTractors.length > 0) {
                     tractorId = anyTractors[0].id;
-                    this.logger.debugLog(`[Equipment] Usando melhor trator ${tractorId} (${anyTractors[0].haHour} ha/h) de outra farm para ${opType}`);
+                    this.logger.debugLog(`[Equipment] Using best tractor ${tractorId} (${anyTractors[0].haHour} ha/h) from another farm for ${opType}`);
                 }
             }
         }
 
         if (tractorId === 0) {
-            this.logger.debugLog(`[Equipment] ${opType} não tem tractorId válido`);
+            this.logger.debugLog(`[Equipment] ${opType} does not have valid tractorId`);
             return null;
         }
 
-        // Usar opDuration da API ou calcular estimativa
+        // Use opDuration from API or calculate estimate
         const estimatedDuration = opEquipment.data.opDuration || 0;
 
-        this.logger.debugLog(`[Equipment] Selecionado para ${opType}: trator ${tractorId}, haHour ${unitHaHour}, duração estimada ${estimatedDuration}s (${(estimatedDuration / 3600).toFixed(1)}h)`);
+        this.logger.debugLog(`[Equipment] Selected for ${opType}: tractor ${tractorId}, haHour ${unitHaHour}, estimated duration ${estimatedDuration}s (${(estimatedDuration / 3600).toFixed(1)}h)`);
 
         return {
             tractorId,
@@ -360,7 +360,7 @@ export class TractorService {
     }
 
     /**
-     * Prepara os dados de unidades para uma ação batch
+     * Prepares unit data for a batch action
      */
     buildBatchUnits(tractorId: number, implementId?: number): Record<string, BatchActionUnit> {
         const unit: BatchActionUnit = { tractorId };
@@ -371,7 +371,7 @@ export class TractorService {
     }
 
     /**
-     * Prepara os dados de múltiplas unidades para uma ação batch
+     * Prepares data for multiple units for a batch action
      */
     buildMultiBatchUnits(tractors: { tractorId: number; implementId?: number }[]): Record<string, BatchActionUnit> {
         const units: Record<string, BatchActionUnit> = {};
@@ -386,17 +386,17 @@ export class TractorService {
     }
 
     /**
-     * Obtém tratores otimizados para uma operação, considerando:
-     * - Múltiplos tratores (até maxTractors)
-     * - Auto-implement (anexar implementos disponíveis)
-     * - Tempo ocioso de outros campos
+     * Gets optimized tractors for an operation, considering:
+     * - Multiple tractors (up to maxTractors)
+     * - Auto-implement (attach available implements)
+     * - Idle time of other fields
      */
     async getOptimalTractorsForOperation(
         farmlandId: number,
         farmId: number,
         area: number,
         complexityIndex: number,
-        opType: 'seeding' | 'plowing' | 'harvesting' | 'clearing',
+        opType: 'seeding' | 'plowing' | 'harvesting' | 'clearing' | 'fertilizing',
         maxTractors: number = 4,
         maxIdleTimeMinutes: number = 30
     ): Promise<{
@@ -406,31 +406,31 @@ export class TractorService {
         opType: string;
     } | null> {
         try {
-            // 1. Buscar tratores disponíveis para esta operação
+            // 1. Search for available tractors for this operation
             let response: any;
             if (opType === 'seeding') {
                 response = await this.api.getFarmlandActionSeed(farmlandId, farmId, area, complexityIndex);
             } else if (opType === 'plowing') {
                 response = await this.api.getFarmlandActionPlow(farmlandId, farmId, area, complexityIndex);
             } else if (opType === 'harvesting') {
-                // Para harvesting: buscar colheitadeiras disponíveis e aplicar verificação de ociosidade
+                // For harvesting: search for available harvesters and apply idle verification
                 const equipment = await this.getEquipmentForFarmland(farmlandId, opType);
                 if (!equipment) return null;
 
-                // Montar lista de colheitadeiras disponíveis
+                // Build list of available harvesters
                 const harvesters: { tractorId: number; implementId?: number; haHour: number }[] = [
                     { tractorId: equipment.tractorId, implementId: equipment.implementId, haHour: equipment.haHour }
                 ];
 
-                // TODO: Em uma implementação futura, buscar todas as colheitadeiras disponíveis
-                // Por agora, usar apenas a melhor colheitadeira encontrada
+                // TODO: In a future implementation, search for all available harvesters
+                // For now, use only the best harvester found
 
-                // Verificar operações pendentes (campos em maturação) para não deixar ociosos
+                // Check pending operations (maturing fields) to avoid leaving them idle
                 const pendingOps = await this.getPendingOperationsInFarm(farmId);
                 const maturingFields = pendingOps.filter(op => op.opType === 'harvesting');
 
                 if (maturingFields.length > 0 && harvesters.length > 0) {
-                    // Verificar se algum campo vai precisar de colheitadeira em breve
+                    // Check if any field will need a harvester soon
                     const estimatedDuration = equipment.estimatedDuration;
 
                     for (const maturing of maturingFields) {
@@ -439,15 +439,15 @@ export class TractorService {
 
                         if (potentialIdleTime > maxIdleTimeMinutes * 60 && potentialIdleTime > 0) {
                             this.logger.info(
-                                `⚠️ Campo "${maturing.farmlandName}" vai precisar de colheita em ` +
-                                `${Math.ceil(timeUntilMature / 60)}min. Considerando isso na alocação.`
+                                `⚠️ Field "${maturing.farmlandName}" will need harvest in ` +
+                                `${Math.ceil(timeUntilMature / 60)}min. Considering this in allocation.`
                             );
                         }
                     }
                 }
 
                 this.logger.debugLog(
-                    `[Harvester] Usando colheitadeira ${equipment.tractorId} ` +
+                    `[Harvester] Using harvester ${equipment.tractorId} ` +
                     `(${equipment.haHour} ha/h, ~${Math.ceil(equipment.estimatedDuration / 60)}min)`
                 );
 
@@ -458,7 +458,7 @@ export class TractorService {
                     opType,
                 };
             } else {
-                // Para clearing, usar lógica simples (equipamento único)
+                // For clearing, use simple logic (single equipment)
                 const equipment = await this.getEquipmentForFarmland(farmlandId, opType);
                 if (!equipment) return null;
                 return {
@@ -470,29 +470,29 @@ export class TractorService {
             }
 
             if (!response.tractors || response.tractors.length === 0) {
-                this.logger.debugLog(`[MultiTractor] Nenhum trator disponível para ${opType}`);
+                this.logger.debugLog(`[MultiTractor] No tractors available for ${opType}`);
                 return null;
             }
 
-            // 2. Filtrar tratores do tipo correto e não pendentes
+            // 2. Filter tractors of correct type and not pending
             const availableTractors = response.tractors.filter((t: any) =>
                 t.type === opType && !t.isPending && t.hasImplement
             );
 
-            // 3. Verificar implementos disponíveis para auto-attach
+            // 3. Check available implements for auto-attach
             const availableImplements = (response.implements || []).filter((i: any) =>
                 i.type === opType && i.available > 0
             );
 
-            // 4. Tratores sem implemento mas que podem receber um
+            // 4. Tractors without implement but that can receive one
             const tractorsWithoutImplement = response.tractors.filter((t: any) =>
                 t.type !== opType && !t.isPending && !t.hasImplement
             );
 
-            // 5. Montar lista de tratores utilizáveis
+            // 5. Build list of usable tractors
             const usableTractors: { tractorId: number; implementId?: number; haHour: number }[] = [];
 
-            // Primeiro, adicionar tratores que já têm o implemento correto
+            // First, add tractors that already have the correct implement
             for (const tractor of availableTractors) {
                 if (usableTractors.length >= maxTractors) break;
                 usableTractors.push({
@@ -502,11 +502,11 @@ export class TractorService {
                 });
             }
 
-            // Depois, tentar anexar implementos disponíveis a tratores sem implemento
+            // Then, try to attach available implements to tractors without implement
             for (const implement of availableImplements) {
                 if (usableTractors.length >= maxTractors) break;
 
-                // Encontrar um trator que possa usar este implemento
+                // Find a tractor that can use this implement
                 const compatibleTractor = response.tractors.find((t: any) =>
                     !t.isPending &&
                     t.hp >= implement.minHp &&
@@ -514,7 +514,7 @@ export class TractorService {
                 );
 
                 if (compatibleTractor) {
-                    this.logger.info(`🔧 Auto-attach: Anexando "${implement.name}" ao trator "${compatibleTractor.tractorName}"`);
+                    this.logger.info(`🔧 Auto-attach: Attaching "${implement.name}" to tractor "${compatibleTractor.tractorName}"`);
                     usableTractors.push({
                         tractorId: compatibleTractor.id,
                         implementId: implement.id,
@@ -524,36 +524,36 @@ export class TractorService {
             }
 
             if (usableTractors.length === 0) {
-                this.logger.debugLog(`[MultiTractor] Nenhum trator utilizável para ${opType}`);
+                this.logger.debugLog(`[MultiTractor] No usable tractors for ${opType}`);
                 return null;
             }
 
-            // 6. Ordenar por haHour (maior primeiro)
+            // 6. Sort by haHour (highest first)
             usableTractors.sort((a, b) => b.haHour - a.haHour);
 
-            // 7. Verificar operações pendentes para não deixar campos ociosos
+            // 7. Check pending operations to avoid leaving fields idle
             const pendingOps = await this.getPendingOperationsInFarm(farmId);
 
-            // Calcular quantos tratores podemos usar sem deixar campos ociosos por muito tempo
+            // Calculate how many tractors we can use without leaving fields idle for too long
             let tractorsToUse = usableTractors.slice(0, maxTractors);
 
             if (pendingOps.length > 0 && tractorsToUse.length > 1) {
-                // Calcular tempo de operação com N tratores (haHour já considera complexidade)
+                // Calculate operation time with N tractors (haHour already considers complexity)
                 const totalHaHour = tractorsToUse.reduce((sum, t) => sum + t.haHour, 0);
                 const operationTimeSeconds = (area / totalHaHour) * 3600;
 
-                // Verificar se alguma operação pendente vai precisar de trator
+                // Check if any pending operation will need a tractor
                 for (const pending of pendingOps) {
-                    const timeUntilNeedsTractor = pending.opTimeRemain; // segundos
+                    const timeUntilNeedsTractor = pending.opTimeRemain; // seconds
                     const potentialIdleTime = operationTimeSeconds - timeUntilNeedsTractor;
 
                     if (potentialIdleTime > maxIdleTimeMinutes * 60) {
-                        // Reduzir número de tratores para que a operação termine mais rápido? Não!
-                        // Na verdade, precisamos reservar pelo menos 1 trator para o campo pendente
+                        // Reduce number of tractors so operation finishes faster? No!
+                        // Actually, we need to reserve at least 1 tractor for the pending field
                         if (tractorsToUse.length > 1) {
                             this.logger.info(
-                                `⚠️ Campo "${pending.farmlandName}" vai precisar de trator em ${Math.ceil(timeUntilNeedsTractor / 60)}min. ` +
-                                `Reservando 1 trator para ele.`
+                                `⚠️ Field "${pending.farmlandName}" will need a tractor in ${Math.ceil(timeUntilNeedsTractor / 60)}min. ` +
+                                `Reserving 1 tractor for it.`
                             );
                             tractorsToUse = tractorsToUse.slice(0, tractorsToUse.length - 1);
                         }
@@ -562,13 +562,13 @@ export class TractorService {
                 }
             }
 
-            // 8. Calcular totais finais
+            // 8. Calculate final totals
             const finalTotalHaHour = tractorsToUse.reduce((sum, t) => sum + t.haHour, 0);
-            // Nota: haHour já considera a complexidade do terreno, não multiplicar por complexityIndex
+            // Note: haHour already considers terrain complexity, don't multiply by complexityIndex
             const estimatedDuration = Math.ceil((area / finalTotalHaHour) * 3600);
 
             this.logger.info(
-                `🚜 Multi-tractor: Usando ${tractorsToUse.length} trator(es) para ${opType} ` +
+                `🚜 Multi-tractor: Using ${tractorsToUse.length} tractor(s) for ${opType} ` +
                 `(${finalTotalHaHour} ha/h total, ~${Math.ceil(estimatedDuration / 60)}min)`
             );
 
@@ -579,13 +579,13 @@ export class TractorService {
                 opType,
             };
         } catch (error) {
-            this.logger.error(`Erro ao obter tratores otimizados para ${opType}`, error as Error);
+            this.logger.error(`Error getting optimized tractors for ${opType}`, error as Error);
             return null;
         }
     }
 
     /**
-     * Obtém operações pendentes (em andamento) em uma farm
+     * Gets pending operations (in progress) in a farm
      */
     private async getPendingOperationsInFarm(farmId: number): Promise<{
         farmlandId: number;
@@ -625,7 +625,7 @@ export class TractorService {
 
             return operations;
         } catch (error) {
-            this.logger.debugLog(`[PendingOps] Erro ao buscar operações pendentes: ${error}`);
+            this.logger.debugLog(`[PendingOps] Error searching for pending operations: ${error}`);
             return [];
         }
     }

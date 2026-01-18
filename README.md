@@ -1,175 +1,175 @@
 # 🌾 Farm Manager Bot
 
-Bot automatizado para gerenciamento de fazendas no **Farm Manager** (farm-app.trophyapi.com).
+Automated bot for farm management in **Farm Manager** (farm-app.trophyapi.com).
 
-> **Status:** Em desenvolvimento ativo 🚧
+> **Status:** In active development 🚧
 
 ---
 
-## 🎮 Funcionalidades
+## 🎮 Features
 
-### ✅ Implementado
+### ✅ Implemented
 
-| Feature | Descrição |
+| Feature | Description |
 |---------|-----------|
-| **Auto Colheita** | Detecta e colhe automaticamente quando a plantação está madura |
-| **Auto Cultivo** | Limpa (clearing) e ara (plowing) terrenos automaticamente |
-| **Smart Seeding** | Seleciona a melhor semente baseado no `cropScore` do terreno |
-| **Compra de Sementes** | Compra automaticamente sementes quando estoque está baixo |
-| **Venda Automática** | Vende produtos do silo quando atinge % configurável |
-| **Monitoramento do Silo** | Exibe status individual de cada grão (capacidade por tipo) |
-| **Gerenciamento de Combustível** | Mantém combustível acima de 1000L e compra quando preço está bom (<$1000) |
-| **Seleção Inteligente de Tratores** | Sempre usa o trator/equipamento mais rápido disponível (maior haHour) |
-| **Limite de Tempo de Operação** | Ignora operações que demorariam mais de 6 horas |
-| **Login Automático** | Suporta login via Android token ou email/senha |
-| **Multi-Tractor** | Usa até 4 tratores simultaneamente para acelerar operações |
-| **Auto-Implement** | Anexa implementos automaticamente quando necessário |
-| **Verificação de Ociosidade** | Reserva tratores para operações que vão precisar em breve |
+| **Auto Harvest** | Automatically detects and harvests when crops are mature |
+| **Auto Cultivation** | Automatically clears and plows fields |
+| **Smart Seeding** | Selects the best seed based on the field's `cropScore` |
+| **Seed Purchase** | Automatically purchases seeds when stock is low |
+| **Automatic Sale** | Sells silo products when reaching configurable % |
+| **Silo Monitoring** | Displays individual status of each grain (capacity by type) |
+| **Fuel Management** | Maintains fuel above 1000L and purchases when price is good (<$1000) |
+| **Smart Tractor Selection** | Always uses the fastest available tractor/equipment (highest haHour) |
+| **Operation Time Limit** | Ignores operations that would take more than 6 hours |
+| **Automatic Login** | Supports login via Android token or email/password |
+| **Multi-Tractor** | Uses up to 4 tractors simultaneously to speed up operations |
+| **Auto-Implement** | Automatically attaches implements when needed |
+| **Idle Verification** | Reserves tractors for operations that will be needed soon |
 
 ### 🔜 Roadmap
 
-**Futuro:**
-- [ ] Suporte a irrigação automática
-- [ ] Fertilização automática
-- [ ] Múltiplas contas
-- [ ] Dashboard web para monitoramento
-- [ ] Notificações via Telegram/Discord
-- [ ] Análise de mercado para venda no melhor momento
+**Future:**
+- [ ] Automatic irrigation support
+- [ ] Automatic fertilization
+- [ ] Multiple accounts
+- [ ] Web dashboard for monitoring
+- [ ] Telegram/Discord notifications
+- [ ] Market analysis for selling at the best time
 
 ---
 
-## 🔐 Autenticação
+## 🔐 Authentication
 
-O bot precisa de um `PHPSESSID` válido para funcionar. Existem **três formas** de obtê-lo:
+The bot needs a valid `PHPSESSID` to work. There are **three ways** to obtain it:
 
-### Opção 1: Android Token (Recomendado) ⭐
+### Option 1: Android Token (Recommended) ⭐
 
-Se você tem acesso ao token do app Android:
-
-```env
-ANDROID_TOKEN=seu_token_aqui
-```
-
-O bot fará login automaticamente usando o token e renovará a sessão quando necessário.
-
-### Opção 2: Login com Email/Senha
-
-Se você sabe suas credenciais:
+If you have access to the Android app token:
 
 ```env
-FARM_EMAIL=seu_email@exemplo.com
-FARM_PASSWORD=sua_senha
+ANDROID_TOKEN=your_token_here
 ```
 
-O bot fará login automaticamente e obterá o `PHPSESSID`.
+The bot will automatically log in using the token and renew the session when necessary.
 
-### Opção 3: PHPSESSID Manual
+### Option 2: Login with Email/Password
 
-Se preferir configurar manualmente:
+If you know your credentials:
 
 ```env
-PHPSESSID=seu_session_id_aqui
+FARM_EMAIL=your_email@example.com
+FARM_PASSWORD=your_password
 ```
 
-#### 📱 Como obter o PHPSESSID do app Android
+The bot will automatically log in and obtain the `PHPSESSID`.
 
-1. **Configurar proxy no celular:**
-   - Instale [mitmproxy](https://mitmproxy.org/) ou [Charles Proxy](https://www.charlesproxy.com/)
-   - Configure o proxy no WiFi do Android
-   - Instale o certificado CA no dispositivo
+### Option 3: Manual PHPSESSID
 
-2. **Interceptar requisições:**
-   - Abra o app Farm Manager
-   - Procure requisições para `farm-app.trophyapi.com`
-   - Copie o valor do cookie `PHPSESSID`
+If you prefer to configure manually:
 
-3. **Colar no `.env`:**
+```env
+PHPSESSID=your_session_id_here
+```
+
+#### 📱 How to get PHPSESSID from Android app
+
+1. **Configure proxy on phone:**
+   - Install [mitmproxy](https://mitmproxy.org/) or [Charles Proxy](https://www.charlesproxy.com/)
+   - Configure the proxy on Android WiFi
+   - Install the CA certificate on the device
+
+2. **Intercept requests:**
+   - Open the Farm Manager app
+   - Look for requests to `farm-app.trophyapi.com`
+   - Copy the `PHPSESSID` cookie value
+
+3. **Paste in `.env`:**
    ```env
    PHPSESSID=xxxxxxxxxxxxxxxxxx
    ```
 
-> ⚠️ **Nota:** O PHPSESSID pode expirar. Se o bot parar de funcionar, intercepte um novo.
+> ⚠️ **Note:** The PHPSESSID can expire. If the bot stops working, intercept a new one.
 
 ---
 
-## 🚀 Instalação
+## 🚀 Installation
 
 ```bash
-# Clonar repositório
+# Clone repository
 git clone https://github.com/seu-usuario/BotFarmManager.git
 cd BotFarmManager
 
-# Instalar dependências
+# Install dependencies
 npm install
 
-# Configurar ambiente
+# Configure environment
 cp .env.example .env
-# Edite o .env com suas credenciais
+# Edit the .env with your credentials
 
-# Rodar em desenvolvimento
+# Run in development
 npm run dev
 
-# Build para produção
+# Build for production
 npm run build
 npm start
 ```
 
 ---
 
-## ⚙️ Configuração
+## ⚙️ Configuration
 
-| Variável | Descrição | Default |
+| Variable | Description | Default |
 |----------|-----------|---------|
-| `ANDROID_TOKEN` | Token do app Android para login automático | - |
-| `FARM_EMAIL` | Email de login | - |
-| `FARM_PASSWORD` | Senha de login | - |
-| `PHPSESSID` | Session ID manual (alternativa ao login) | - |
-| `CHECK_INTERVAL_MS` | Intervalo entre ciclos (ms) | `120000` |
-| `SILO_SELL_THRESHOLD` | % do silo para venda automática | `80` |
-| `DEBUG` | Ativar logs detalhados | `false` |
+| `ANDROID_TOKEN` | Android app token for automatic login | - |
+| `FARM_EMAIL` | Login email | - |
+| `FARM_PASSWORD` | Login password | - |
+| `PHPSESSID` | Manual session ID (alternative to login) | - |
+| `CHECK_INTERVAL_MS` | Interval between cycles (ms) | `120000` |
+| `SILO_SELL_THRESHOLD` | % of silo for automatic sale | `80` |
+| `DEBUG` | Enable detailed logs | `false` |
 
 ---
 
-## 📁 Estrutura do Projeto
+## 📁 Project Structure
 
 ```
 src/
 ├── api/
-│   └── client.ts        # Cliente HTTP para a API
+│   └── client.ts        # HTTP client for the API
 ├── bot/
-│   └── FarmBot.ts       # Lógica principal do bot
+│   └── FarmBot.ts       # Main bot logic
 ├── services/
-│   ├── AuthService.ts   # Login e obtenção de sessão
-│   ├── FarmService.ts   # Gerenciamento de fazendas
-│   ├── FuelService.ts   # Gerenciamento de combustível
+│   ├── AuthService.ts   # Login and session management
+│   ├── FarmService.ts   # Farm management
+│   ├── FuelService.ts   # Fuel management
 │   ├── SeedService.ts   # Smart Seeding
-│   ├── SiloService.ts   # Monitoramento do silo
-│   ├── MarketService.ts # Vendas no mercado
-│   └── TractorService.ts # Gerenciamento de tratores e equipamentos
+│   ├── SiloService.ts   # Silo monitoring
+│   ├── MarketService.ts # Market sales
+│   └── TractorService.ts # Tractor and equipment management
 ├── types/
-│   └── index.ts         # Interfaces TypeScript
+│   └── index.ts         # TypeScript interfaces
 ├── utils/
-│   └── logger.ts        # Sistema de logs
+│   └── logger.ts        # Logging system
 └── index.ts             # Entry point
 ```
 
 ---
 
-## 📊 Exemplo de Logs
+## 📊 Example Logs
 
 ```
-[FarmBot] [INFO] 🔄 Iniciando ciclo - 13/01/2026, 11:00:00
-[FarmBot] [FUEL] ⛽ Combustível: 1,316L | Preço: $1,758/1000L
-[FarmBot] [TASK] 🚜 1 colheita(s) disponível(is)
-[FarmBot] [SUCCESS] ✅ harvesting iniciado em "Fazenda Norte" - Tempo estimado: 3600s
-[FarmBot] [SILO] 🌾 Silo Total: 220,000kg armazenados
+[FarmBot] [INFO] 🔄 Starting cycle - 01/13/2026, 11:00:00
+[FarmBot] [FUEL] ⛽ Fuel: 1,316L | Price: $1,758/1000L
+[FarmBot] [TASK] 🚜 1 harvest(s) available
+[FarmBot] [SUCCESS] ✅ harvesting started on "North Farm" - Estimated time: 3600s
+[FarmBot] [SILO] 🌾 Total Silo: 220,000kg stored
 [FarmBot] [SILO] 🌾   - Canola: 127,000kg / 300,000kg (42.33%)
 [FarmBot] [SILO] 🌾   - Corn: 73,000kg / 300,000kg (24.33%)
-[FarmBot] [INFO] ✅ Ciclo concluído
+[FarmBot] [INFO] ✅ Cycle completed
 ```
 
 ---
 
-## 📝 Licença
+## 📝 License
 
 ISC

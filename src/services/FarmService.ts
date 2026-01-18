@@ -14,14 +14,14 @@ import {
 } from '../types';
 import { Logger } from '../utils/logger';
 
-// Constante: tempo mínimo entre colheitas (6 horas em milissegundos)
+// Constant: minimum time between harvests (6 hours in milliseconds)
 const MIN_HARVEST_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 export class FarmService {
     private api: ApiClient;
     private logger: Logger;
 
-    // Cache de colheitas: userFarmlandId -> timestamp da última colheita
+    // Harvest cache: userFarmlandId -> timestamp of last harvest
     private harvestCache: Map<number, number> = new Map();
 
     constructor(api: ApiClient, logger: Logger) {
@@ -30,20 +30,20 @@ export class FarmService {
     }
 
     /**
-     * Registra uma colheita realizada para o filtro de 6 horas
+     * Records a harvest performed for the 6-hour filter
      */
     recordHarvest(userFarmlandId: number): void {
         this.harvestCache.set(userFarmlandId, Date.now());
-        this.logger.debugLog(`[HarvestCache] Registrada colheita para userFarmlandId ${userFarmlandId}`);
+        this.logger.debugLog(`[HarvestCache] Harvest recorded for userFarmlandId ${userFarmlandId}`);
     }
 
     /**
-     * Verifica se uma colheita pode ser realizada (passou 6 horas desde a última)
+     * Checks if a harvest can be performed (6 hours have passed since the last one)
      */
     canHarvest(userFarmlandId: number): boolean {
         const lastHarvest = this.harvestCache.get(userFarmlandId);
         if (!lastHarvest) {
-            return true; // Nunca foi colhido nesta sessão
+            return true; // Never harvested in this session
         }
 
         const elapsed = Date.now() - lastHarvest;
@@ -51,7 +51,7 @@ export class FarmService {
     }
 
     /**
-     * Retorna quanto tempo falta para poder colher novamente (em minutos)
+     * Returns how much time is left until can harvest again (in minutes)
      */
     getTimeUntilCanHarvest(userFarmlandId: number): number {
         const lastHarvest = this.harvestCache.get(userFarmlandId);
@@ -61,47 +61,61 @@ export class FarmService {
 
         const elapsed = Date.now() - lastHarvest;
         const remaining = MIN_HARVEST_INTERVAL_MS - elapsed;
-        return Math.max(0, Math.ceil(remaining / (60 * 1000))); // em minutos
+        return Math.max(0, Math.ceil(remaining / (60 * 1000))); // in minutes
     }
 
     /**
-     * Obtém todas as tarefas disponíveis para cultivo (arar, limpar)
+     * Gets all available tasks for cultivation (plow, clear)
      */
     async getCultivatingTasks(): Promise<AvailableTask[]> {
         const response = await this.api.getCultivatingTab();
         this.logger.debugLog(`[Cultivating] Response: ${JSON.stringify(response, null, 2)}`);
 
         if (!response.farms) {
-            this.logger.debugLog('[Cultivating] Nenhuma farm encontrada na resposta');
+            this.logger.debugLog('[Cultivating] No farms found in response');
             return [];
         }
         return this.extractTasksFromFarms(response.farms, 'cultivating');
     }
 
     /**
-     * Obtém todas as tarefas disponíveis para semeadura
+     * Gets all available tasks for seeding
+     */
+    async getFertilizingTasks(): Promise<AvailableTask[]> {
+        const response = await this.api.getCultivatingTab();
+        this.logger.debugLog(`[Fertilizing] Response: ${JSON.stringify(response, null, 2)}`);
+
+        if (!response.farms) {
+            this.logger.debugLog('[Fertilizing] No farms found in response');
+            return [];
+        }
+        return this.extractTasksFromFarms(response.farms, 'fertilizing');
+    }
+
+    /**
+     * Gets all available tasks for seeding
      */
     async getSeedingTasks(): Promise<AvailableTask[]> {
         const response = await this.api.getSeedingTab();
-        this.logger.debugLog(`[Seeding] Response: ${JSON.stringify(response, null, 2)}`);
+        //this.logger.debugLog(`[Seeding] Response: ${JSON.stringify(response, null, 2)}`);
 
         if (!response.farms) {
-            this.logger.debugLog('[Seeding] Nenhuma farm encontrada na resposta');
+            this.logger.debugLog('[Seeding] No farms found in response');
             return [];
         }
         return this.extractTasksFromFarms(response.farms, 'seeding');
     }
 
     /**
-     * Obtém todas as tarefas disponíveis para colheita
-     * A estrutura da resposta de Harvest é diferente das outras abas!
+     * Gets all available tasks for harvest
+     * The Harvest response structure is different from other tabs!
      */
     async getHarvestingTasks(): Promise<AvailableTask[]> {
         const response = await this.api.getHarvestTab();
         this.logger.debugLog(`[Harvest] Response: ${JSON.stringify(response, null, 2)}`);
 
         if (!response.farms) {
-            this.logger.debugLog('[Harvest] Nenhuma farm encontrada na resposta');
+            this.logger.debugLog('[Harvest] No farms found in response');
             return [];
         }
 
@@ -109,9 +123,9 @@ export class FarmService {
     }
 
     /**
-     * Extrai tarefas de colheita da resposta da API
-     * Estrutura: farms[farmId].farmlands[cropTypeId].data[farmlandId]
-     * Aplica filtro de 6 horas para evitar colher terras recentemente colhidas
+     * Extracts harvest tasks from API response
+     * Structure: farms[farmId].farmlands[cropTypeId].data[farmlandId]
+     * Applies 6-hour filter to avoid harvesting recently harvested fields
      */
     private extractHarvestTasks(farms: Record<string, any>): AvailableTask[] {
         const tasks: AvailableTask[] = [];
@@ -121,7 +135,7 @@ export class FarmService {
 
             if (!farmlands) continue;
 
-            // farmlands é agrupado por tipo de cultura (1, 2, etc), não por estado
+            // farmlands are grouped by crop type (1, 2, etc), not by state
             for (const [cropTypeId, cropFarmlands] of Object.entries(farmlands)) {
                 const cropData = cropFarmlands as any;
 
@@ -133,16 +147,16 @@ export class FarmService {
                     const fl = farmland as any;
 
                     if (fl.canHarvest === 1) {
-                        // Verificar filtro de 6 horas
+                        // Check 6-hour filter
                         if (!this.canHarvest(fl.id)) {
                             const timeRemaining = this.getTimeUntilCanHarvest(fl.id);
                             this.logger.debugLog(
-                                `[Harvest] ⏱️ Ignorando "${fl.farmlandName}" - última colheita há menos de 6h (faltam ${timeRemaining}min)`
+                                `[Harvest] ⏱️ Ignoring "${fl.farmlandName}" - last harvest less than 6h ago (${timeRemaining}min remaining)`
                             );
                             continue;
                         }
 
-                        this.logger.debugLog(`[Harvest] Encontrada colheita: ${fl.farmlandName} (${fl.area}ha)`);
+                        this.logger.debugLog(`[Harvest] Found harvest: ${fl.farmlandName} (${fl.area}ha)`);
                         tasks.push({
                             type: 'harvesting',
                             farmId: Number(farmId),
@@ -161,19 +175,20 @@ export class FarmService {
     }
 
     /**
-     * Extrai tarefas disponíveis de uma resposta de farms (cultivating/seeding)
+     * Extracts available tasks from a farms response (cultivating/seeding)
      */
     private extractTasksFromFarms(
         farms: Record<string, Farm>,
-        taskType: 'cultivating' | 'seeding'
+        taskType: 'cultivating' | 'seeding' | 'fertilizing'
     ): AvailableTask[] {
         const tasks: AvailableTask[] = [];
 
         for (const [farmId, farm] of Object.entries(farms)) {
             const farmlands = farm.farmlands;
+            this.logger.debugLog(`[Seeding] Response: ${JSON.stringify(farm, null, 2)}`);
 
             if (taskType === 'cultivating') {
-                // Para cultivar: verificar terrenos "cleared" (precisam de arar/plowing)
+                // For cultivation: check "cleared" fields (need plowing)
                 if (farmlands.cleared) {
                     for (const [id, farmland] of Object.entries(farmlands.cleared.data)) {
                         if (farmlands.cleared.canCultivate > 0) {
@@ -189,7 +204,7 @@ export class FarmService {
                         }
                     }
                 }
-                // Também verificar terrenos "raw" que precisam de clearing
+                // Also check "raw" fields that need clearing
                 if (farmlands.raw) {
                     for (const [id, farmland] of Object.entries((farmlands as any).raw.data)) {
                         const fl = farmland as FarmlandData;
@@ -207,12 +222,47 @@ export class FarmService {
                     }
                 }
             } else if (taskType === 'seeding') {
-                // Para semear: verificar terrenos "plowed" (prontos para semeadura)
+                // For seeding: check "fertilized" fields (ready for fertilizing)
+                if (farmlands.fertilized) {
+                    for (const [id, farmland] of Object.entries(farmlands.fertilized.data)) {
+                        if (farmlands.fertilized.canCultivate > 0) {
+                            tasks.push({
+                                type: 'seeding',
+                                farmId: Number(farmId),
+                                farmlandId: farmland.farmlandId,
+                                userFarmlandId: farmland.id,
+                                area: farmland.area,
+                                complexityIndex: farmland.complexityIndex,
+                                farmlandName: farmland.farmlandName,
+                            });
+                        }
+                    }
+                }
+
+               // For seeding: check "plowed" fields (ready for seeding)
+               if (farmlands.plowed) {
+                for (const [id, farmland] of Object.entries(farmlands.plowed.data)) {
+                    if (farmlands.plowed.canCultivate > 0) {
+                        tasks.push({
+                            type: 'seeding',
+                            farmId: Number(farmId),
+                            farmlandId: farmland.farmlandId,
+                            userFarmlandId: farmland.id,
+                            area: farmland.area,
+                            complexityIndex: farmland.complexityIndex,
+                            farmlandName: farmland.farmlandName,
+                        });
+                    }
+                }
+            
+            }
+            } else if (taskType === 'fertilizing') {
+                // For fertilizing: check "plowed" fields (ready for fertilizing)
                 if (farmlands.plowed) {
                     for (const [id, farmland] of Object.entries(farmlands.plowed.data)) {
                         if (farmlands.plowed.canCultivate > 0) {
                             tasks.push({
-                                type: 'seeding',
+                                type: 'fertilizing',
                                 farmId: Number(farmId),
                                 farmlandId: farmland.farmlandId,
                                 userFarmlandId: farmland.id,
@@ -230,7 +280,7 @@ export class FarmService {
     }
 
     /**
-     * Obtém contadores de tarefas pendentes
+     * Gets pending task counters
      */
     async getTaskCounts(): Promise<{
         pending: number;
@@ -244,7 +294,7 @@ export class FarmService {
     }
 
     /**
-     * Obtém detalhes de uma fazenda específica
+     * Gets details of a specific farm
      */
     async getFarmlandDetails(farmlandId: number) {
         return this.api.getFarmlandDetails(farmlandId);

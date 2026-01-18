@@ -62,14 +62,14 @@ export class ApiClient {
     private updateBT(response: BaseResponse): void {
         if (response.BT) {
             this.currentBT = response.BT;
-            this.logger.debugLog(`Token BT atualizado: ${this.currentBT.substring(0, 8)}...`);
+            this.logger.debugLog(`BT token updated: ${this.currentBT.substring(0, 8)}...`);
         }
     }
 
     private buildFormData(data: Record<string, string | number | undefined>): URLSearchParams {
         const params = new URLSearchParams();
 
-        // Sempre incluir BT se disponível
+        // Always include BT if available
         if (this.currentBT) {
             params.append('BT', this.currentBT);
         }
@@ -219,7 +219,7 @@ export class ApiClient {
     }
 
     /**
-     * Obtém tratores disponíveis para operação de seeding em um terreno específico
+     * Gets available tractors for seeding operation on a specific field
      */
     async getFarmlandActionSeed(farmlandId: number, farmId: number, area: number, complexityIndex: number): Promise<any> {
         const formData = this.buildFormData({
@@ -240,7 +240,7 @@ export class ApiClient {
     }
 
     /**
-     * Obtém tratores disponíveis para operação de plowing em um terreno específico
+     * Gets available tractors for plowing operation on a specific field
      */
     async getFarmlandActionPlow(farmlandId: number, farmId: number, area: number, complexityIndex: number): Promise<any> {
         const formData = this.buildFormData({
@@ -270,7 +270,8 @@ export class ApiClient {
         units: Record<string, BatchActionUnit>,
         single: boolean = true,
         usingWorkers: boolean = false,
-        cropId?: number
+        cropId?: number,
+        fertilizerAmount?: number
     ): Promise<BatchActionResponse> {
         const formData = new URLSearchParams();
         formData.append('opType', opType);
@@ -279,14 +280,23 @@ export class ApiClient {
         formData.append('usingWorkers', usingWorkers ? '1' : '0');
         formData.append('units', JSON.stringify(units));
 
-        // Para seeding, incluir o cropId
+        // For seeding, include the cropId
         if (cropId !== undefined) {
             formData.append('cropId', String(cropId));
+        }
+
+        // For fertilizing, include the amount
+        if (fertilizerAmount !== undefined) {
+            formData.append('fertilizerAmount', String(fertilizerAmount));
         }
 
         if (this.currentBT) {
             formData.append('BT', this.currentBT);
         }
+
+        this.logger.debugLog(`farmlandIds: ${JSON.stringify(farmlandIds)}`);
+        
+        this.logger.info(`formData: ${JSON.stringify(formData)}`);
 
         const response = await this.client.post<BatchActionResponse>(
             '/farmland-batch-action-start.php',
@@ -298,7 +308,7 @@ export class ApiClient {
     }
 
     /**
-     * Endpoint específico para colheita (usa formato diferente!)
+     * Specific endpoint for harvest (uses different format!)
      */
     async startHarvestAction(
         userFarmlandId: number,

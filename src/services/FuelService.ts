@@ -6,9 +6,9 @@ import { ApiClient } from '../api/client';
 import { FuelSiloResponse, BuyFuelResponse } from '../types';
 import { Logger } from '../utils/logger';
 
-// Configurações de combustível
-const FUEL_MIN_LEVEL = 1000; // Mínimo de litros para manter
-const FUEL_PRICE_THRESHOLD = 1000; // Preço considerado "baixo" para comprar
+// Fuel configuration
+const FUEL_MIN_LEVEL = 1000; // Minimum liters to maintain
+const FUEL_PRICE_THRESHOLD = 1000; // Price considered "low" to buy
 
 export class FuelService {
     private api: ApiClient;
@@ -20,17 +20,17 @@ export class FuelService {
     }
 
     /**
-     * Obtém status completo do silo de combustível
+     * Gets complete fuel silo status
      */
     async getFuelStatus(): Promise<FuelSiloResponse> {
         return this.api.getFuelSilo();
     }
 
     /**
-     * Verifica se precisa comprar combustível
-     * Retorna true se:
-     * - Combustível está abaixo de 1000L
-     * - OU preço atual está abaixo de 1000 (bom preço)
+     * Checks if fuel needs to be purchased
+     * Returns true if:
+     * - Fuel is below 1000L
+     * - OR current price is below 1000 (good price)
      */
     async shouldBuyFuel(): Promise<{
         shouldBuy: boolean;
@@ -44,22 +44,22 @@ export class FuelService {
         const currentPrice = status.fuelCost;
         const remainingCapacity = status.fuelSilo.remainingCapacity;
 
-        // Verificar se está abaixo do mínimo
+        // Check if below minimum
         if (currentLevel < FUEL_MIN_LEVEL) {
             return {
                 shouldBuy: true,
-                reason: `Combustível baixo (${currentLevel}L < ${FUEL_MIN_LEVEL}L)`,
+                reason: `Fuel low (${currentLevel}L < ${FUEL_MIN_LEVEL}L)`,
                 currentLevel,
                 currentPrice,
                 maxCanBuy: remainingCapacity,
             };
         }
 
-        // Verificar se o preço está bom para encher
+        // Check if price is good to fill up
         if (currentPrice < FUEL_PRICE_THRESHOLD && remainingCapacity > 0) {
             return {
                 shouldBuy: true,
-                reason: `Preço baixo ($${currentPrice}/1000L < $${FUEL_PRICE_THRESHOLD})`,
+                reason: `Low price ($${currentPrice}/1000L < $${FUEL_PRICE_THRESHOLD})`,
                 currentLevel,
                 currentPrice,
                 maxCanBuy: remainingCapacity,
@@ -68,7 +68,7 @@ export class FuelService {
 
         return {
             shouldBuy: false,
-            reason: 'Combustível OK',
+            reason: 'Fuel OK',
             currentLevel,
             currentPrice,
             maxCanBuy: remainingCapacity,
@@ -76,15 +76,15 @@ export class FuelService {
     }
 
     /**
-     * Compra combustível
+     * Buys fuel
      */
     async buyFuel(amount: number): Promise<BuyFuelResponse> {
         return this.api.buyFuel(amount);
     }
 
     /**
-     * Verifica e compra combustível automaticamente se necessário
-     * Retorna true se comprou, false se não precisou
+     * Checks and buys fuel automatically if necessary
+     * Returns true if bought, false if not needed
      */
     async checkAndBuyFuel(): Promise<boolean> {
         const status = await this.getFuelStatus();
@@ -93,48 +93,48 @@ export class FuelService {
         const remainingCapacity = status.fuelSilo.remainingCapacity;
         const accountBalance = status.user.account;
 
-        // Log do status com saldo
+        // Log status with balance
         this.logger.fuel(
-            `Combustível: ${currentLevel.toLocaleString()}L | ` +
-            `Preço: $${currentPrice.toLocaleString()}/1000L | ` +
-            `💰 Saldo: $${accountBalance.toLocaleString()}`
+            `Fuel: ${currentLevel.toLocaleString()}L | ` +
+            `Price: $${currentPrice.toLocaleString()}/1000L | ` +
+            `💰 Balance: $${accountBalance.toLocaleString()}`
         );
 
-        // Verificar se precisa comprar
+        // Check if needs to buy
         let shouldBuy = false;
         let reason = '';
 
         if (currentLevel < FUEL_MIN_LEVEL) {
             shouldBuy = true;
-            reason = `Combustível baixo (${currentLevel}L < ${FUEL_MIN_LEVEL}L)`;
+            reason = `Fuel low (${currentLevel}L < ${FUEL_MIN_LEVEL}L)`;
         } else if (currentPrice < FUEL_PRICE_THRESHOLD && remainingCapacity > 0) {
             shouldBuy = true;
-            reason = `Preço baixo ($${currentPrice}/1000L < $${FUEL_PRICE_THRESHOLD})`;
+            reason = `Low price ($${currentPrice}/1000L < $${FUEL_PRICE_THRESHOLD})`;
         }
 
         if (!shouldBuy) {
-            this.logger.debugLog(`[Fuel] Combustível OK`);
+            this.logger.debugLog(`[Fuel] Fuel OK`);
             return false;
         }
 
         this.logger.info(`⛽ ${reason}`);
 
-        // Calcular quanto comprar
-        // Se está baixo, comprar até o mínimo + margem
-        // Se preço está bom, encher o tanque
+        // Calculate how much to buy
+        // If low, buy up to minimum + margin
+        // If price is good, fill the tank
         let amountToBuy: number;
 
         if (currentLevel < FUEL_MIN_LEVEL) {
-            // Comprar para ficar com 2000L (margem de segurança)
+            // Buy to reach 2000L (safety margin)
             const targetLevel = 2000;
             amountToBuy = Math.min(targetLevel - currentLevel, remainingCapacity);
         } else {
-            // Preço bom - encher o tanque
+            // Good price - fill the tank
             amountToBuy = remainingCapacity;
         }
 
         if (amountToBuy <= 0) {
-            this.logger.warn('Silo de combustível está cheio');
+            this.logger.warn('Fuel silo is full');
             return false;
         }
 
@@ -143,29 +143,29 @@ export class FuelService {
 
             if (result.success) {
                 this.logger.success(
-                    `⛽ Comprado ${result.amount.toLocaleString()}L de combustível por $${result.cost.toLocaleString()}`
+                    `⛽ Bought ${result.amount.toLocaleString()}L of fuel for $${result.cost.toLocaleString()}`
                 );
                 return true;
             } else {
-                this.logger.warn('Falha ao comprar combustível');
+                this.logger.warn('Failed to buy fuel');
                 return false;
             }
         } catch (error) {
-            this.logger.error('Erro ao comprar combustível', error as Error);
+            this.logger.error('Error buying fuel', error as Error);
             return false;
         }
     }
 
     /**
-     * Loga status do combustível
+     * Logs fuel status
      */
     async logFuelStatus(): Promise<void> {
         const status = await this.getFuelStatus();
         const silo = status.fuelSilo;
 
         this.logger.fuel(
-            `Combustível: ${silo.siloHolding.toLocaleString()}L / ${silo.siloCapacity.toLocaleString()}L (${silo.pctFull.toFixed(1)}%) | ` +
-            `Preço atual: $${status.fuelCost.toLocaleString()}/1000L`
+            `Fuel: ${silo.siloHolding.toLocaleString()}L / ${silo.siloCapacity.toLocaleString()}L (${silo.pctFull.toFixed(1)}%) | ` +
+            `Current price: $${status.fuelCost.toLocaleString()}/1000L`
         );
     }
 }
