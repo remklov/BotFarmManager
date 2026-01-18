@@ -185,8 +185,7 @@ export class MarketService {
         }
 
         const maxPrice = await this.getMaxPrice(cropId, 7);
-        const fillPercentage = siloPctFull * 100;
-        const allowedDeviationPercent = fillPercentage / 4;
+        const allowedDeviationPercent = siloPctFull / 4;
         const minAcceptablePrice = maxPrice * (1 - allowedDeviationPercent / 100);
 
         return currentPrice.cropValuePer1k >= minAcceptablePrice;
