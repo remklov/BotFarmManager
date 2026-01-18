@@ -12,17 +12,14 @@ export interface ProductToSell {
     name: string;
     pctFull: number;
     amount: number;
-    relativePrice: number;
 }
 
 export class SiloService {
     private api: ApiClient;
     private logger: Logger;
-    private marketService: MarketService;
 
-    constructor(api: ApiClient, MarketService: MarketService, logger: Logger) {
+    constructor(api: ApiClient, logger: Logger) {
         this.api = api;
-        this.marketService = MarketService;
         this.logger = logger;
     }
 
@@ -71,7 +68,6 @@ export class SiloService {
                     name: product.name,
                     pctFull: product.pctFull,
                     amount: product.amount,
-                    relativePrice: 0,
                 });
             }
         }
@@ -82,48 +78,6 @@ export class SiloService {
             );
         }
         return productsToSell;
-    }
-
-    /**
-     * Gets products with good price
-     */
-    async getProductsWithGoodPrice(): Promise<ProductToSell[]> {
-        const silo = await this.getSiloStatus();
-        const productsToSell: ProductToSell[] = [];
-
-        for (const [id, product] of Object.entries(silo.cropSilo.holding)) {
-            // Implement logic to check if the product has a good price
-            if (product.pctFull > 0.01) {
-                const currentPrice = await this.marketService.getCropValue(product.id);
-                if (currentPrice && currentPrice.cropValuePer1k > 5500) {
-                    this.logger.silo(`${product.name} has a good price: ${currentPrice.cropValuePer1k}`);
-                    productsToSell.push({
-                        id: product.id,
-                        name: product.name,
-                        pctFull: product.pctFull,
-                        amount: product.amount,
-                        relativePrice: 0,
-                    });
-                }
-            }
-        }
-
-        if (productsToSell.length > 0) {
-            this.logger.silo(
-                `${productsToSell.length} product(s) with good market price to sell`
-            );
-        }
-        return productsToSell;
-    }
-
-    /**
-     * Gets products to sell
-     */
-    async getProductsToSell(threshold: number): Promise<ProductToSell[]> {
-        const aboveThreshold = await this.getProductsAboveThreshold(threshold);
-        const goodPrice = await this.getProductsWithGoodPrice();
-
-        return [...aboveThreshold, ...goodPrice];
     }
     
 

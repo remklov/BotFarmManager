@@ -295,8 +295,6 @@ export class ApiClient {
         }
 
         this.logger.debugLog(`farmlandIds: ${JSON.stringify(farmlandIds)}`);
-        
-        this.logger.info(`formData: ${JSON.stringify(formData)}`);
 
         const response = await this.client.post<BatchActionResponse>(
             '/farmland-batch-action-start.php',

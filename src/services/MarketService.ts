@@ -5,6 +5,7 @@
 import { ApiClient } from '../api/client';
 import { CropValue, CropValuesResponse, SellProductResponse } from '../types';
 import { Logger } from '../utils/logger';
+import { SiloService } from './SiloService';
 
 export interface SellResult {
     success: boolean;
@@ -15,13 +16,22 @@ export interface SellResult {
     remaining: number;
 }
 
+export interface ProductToSell {
+    id: number;
+    name: string;
+    pctFull: number;
+    amount: number;
+}
+
 export class MarketService {
     private api: ApiClient;
     private logger: Logger;
+    private siloService: SiloService;
     private cropNames: Map<number, string> = new Map();
 
-    constructor(api: ApiClient, logger: Logger) {
+    constructor(api: ApiClient, siloService: SiloService, logger: Logger) {
         this.api = api;
+        this.siloService = siloService;
         this.logger = logger;
     }
 
@@ -123,6 +133,67 @@ export class MarketService {
     async getPriceHistory(cropId: number): Promise<number[]> {
         const response = await this.api.getCropValues();
         return response.history[String(cropId)] || [];
+    }
+
+    /**
+     * Gets products with good price
+     */
+    async getProductsToSell(threshold: number): Promise<ProductToSell[]> {
+        const silo = await this.siloService.getSiloStatus();
+        const productsToSell: ProductToSell[] = [];
+
+        this.logger.market(
+            `Sell check if products can be sold...`
+        );
+
+        for (const [id, product] of Object.entries(silo.cropSilo.holding)) {
+            // Implement logic to check if the product has a good price
+            if (product.pctFull > 0.01) {
+                const currentPrice = await this.getCropValue(product.id);
+                const isGoodPrice = await this.isGoodPrice(product.id, product.pctFull);
+                if (isGoodPrice || product.pctFull >= threshold) {
+                    if (currentPrice) {
+                        this.logger.market(
+                            `Sell ${product.name} for ${currentPrice.cropValuePer1k}`
+                        );
+                    }
+                    productsToSell.push({
+                        id: product.id,
+                        name: product.name,
+                        pctFull: product.pctFull,
+                        amount: product.amount
+                    });
+                }
+            }
+        }
+
+        if (productsToSell.length > 0) {
+            this.logger.market(
+                `${productsToSell.length} product(s) to sell`
+            );
+        }
+        return productsToSell;
+    }
+
+    /**
+     * Tests if the current price is actually a good price, depending on the maxprice of the last 7 days
+     */
+    async isGoodPrice(cropId: number, siloPctFull: number): Promise<boolean> {
+        const currentPrice = await this.getCropValue(cropId);
+        if (currentPrice === null || currentPrice === undefined) {
+            return true;
+        }
+
+        const maxPrice = await this.getMaxPrice(cropId, 7);
+        const fillPercentage = siloPctFull * 100;
+        const allowedDeviationPercent = fillPercentage / 3;
+        const minAcceptablePrice = maxPrice * (1 - allowedDeviationPercent / 100);
+
+        return currentPrice.cropValuePer1k >= minAcceptablePrice;
+    }
+
+    async getMaxPrice(cropId: number, lookBack: number): Promise<number> {
+        return 6000;
     }
 
     /**

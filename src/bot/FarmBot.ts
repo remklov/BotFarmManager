@@ -30,8 +30,8 @@ export class FarmBot {
         // Initialize services
         this.farmService = new FarmService(this.api, this.logger);
         this.tractorService = new TractorService(this.api, this.logger);
-        this.marketService = new MarketService(this.api, this.logger);
-        this.siloService = new SiloService(this.api, this.marketService, this.logger);
+        this.siloService = new SiloService(this.api, this.logger);
+        this.marketService = new MarketService(this.api, this.siloService, this.logger);
         this.seedService = new SeedService(this.api, this.logger);
         this.fuelService = new FuelService(this.api, this.logger);
     }
@@ -471,8 +471,8 @@ export class FarmBot {
             // Log silo status
             await this.siloService.logSiloStatus();
 
-            // Get products above threshold
-            const productsToSell = await this.siloService.getProductsToSell(
+            // Get products to Sell
+            const productsToSell = await this.marketService.getProductsToSell(
                 this.config.siloSellThreshold
             );
 
