@@ -346,7 +346,7 @@ export class FarmBot {
         const MAX_OPERATION_HOURS = 24;
         const MAX_OPERATION_SECONDS = MAX_OPERATION_HOURS * 3600;
 
-        if (optimal.estimatedDuration > MAX_OPERATION_SECONDS) {
+        if (optimal.estimatedDuration > MAX_OPERATION_SECONDS && !this.config.disableMaxTaskDuration) {
             const estimatedHours = (optimal.estimatedDuration / 3600).toFixed(1);
             this.logger.warn(
                 `⏱️ Operation on "${task.farmlandName}" ignored: estimated time of ${estimatedHours}h exceeds limit of ${MAX_OPERATION_HOURS}h.`
@@ -423,7 +423,7 @@ export class FarmBot {
         const MAX_OPERATION_HOURS = 6;
         const MAX_OPERATION_SECONDS = MAX_OPERATION_HOURS * 3600;
 
-        if (optimal.estimatedDuration > MAX_OPERATION_SECONDS) {
+        if (optimal.estimatedDuration > MAX_OPERATION_SECONDS && !this.config.disableMaxTaskDuration) {
             const estimatedHours = (optimal.estimatedDuration / 3600).toFixed(1);
             this.logger.warn(
                 `⏱️ Harvest on "${task.farmlandName}" ignored: estimated time of ${estimatedHours}h exceeds limit of ${MAX_OPERATION_HOURS}h.`
@@ -478,7 +478,7 @@ export class FarmBot {
         const MAX_OPERATION_HOURS = 6;
         const MAX_OPERATION_SECONDS = MAX_OPERATION_HOURS * 3600;
 
-        if (equipment.estimatedDuration > MAX_OPERATION_SECONDS) {
+        if (equipment.estimatedDuration > MAX_OPERATION_SECONDS && !this.config.disableMaxTaskDuration) {
             const estimatedHours = (equipment.estimatedDuration / 3600).toFixed(1);
             this.logger.warn(
                 `⏱️ Operation on "${task.farmlandName}" ignored: estimated time of ${estimatedHours}h exceeds limit of ${MAX_OPERATION_HOURS}h.`
