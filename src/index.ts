@@ -91,8 +91,11 @@ async function loadConfig(): Promise<BotConfig | null> {
         phpSessionId,
         credentials: email && password ? { email, password } : undefined,
         androidToken: savedAccessToken, // Save for possible re-authentication
-        checkIntervalMs: parseInt(process.env.CHECK_INTERVAL_MS || '120000', 10),
-        siloSellThreshold: parseInt(process.env.SILO_SELL_THRESHOLD || '80', 10),
+        checkIntervalMinMs: parseInt(process.env.CHECK_INTERVAL_MIN_MS || '120000', 10),
+        checkIntervalMaxMs: parseInt(process.env.CHECK_INTERVAL_MAX_MS || '600000', 10),
+        pauseAtNight: process.env.PAUSE_AT_NIGHT  === 'true',
+        siloSellThreshold: parseInt(process.env.SILO_SELL_THRESHOLD || '90', 10),
+        disableMaxTaskDuration: process.env.DISABLE_MAX_TASK_DURATION === 'true',
         debug: process.env.DEBUG === 'true',
         maxTractorsPerOp: parseInt(process.env.MAX_TRACTORS_PER_OP || '4', 10),
         maxIdleTimeMinutes: parseInt(process.env.MAX_IDLE_TIME_MINUTES || '30', 10),

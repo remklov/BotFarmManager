@@ -437,8 +437,11 @@ export interface BotConfig {
     phpSessionId?: string;
     credentials?: AuthCredentials;
     androidToken?: string; // Para login via guest Android token
-    checkIntervalMs: number;
+    checkIntervalMinMs: number;
+    checkIntervalMaxMs: number;
     siloSellThreshold: number;
+    pauseAtNight: boolean;
+    disableMaxTaskDuration: boolean;
     debug: boolean;
     maxTractorsPerOp: number; // Máximo de tratores por operação (default: 4)
     maxIdleTimeMinutes: number; // Tempo máximo que um campo pode ficar ocioso (default: 30)

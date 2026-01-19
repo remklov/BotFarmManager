@@ -4,7 +4,7 @@
 
 import { ApiClient } from '../api/client';
 import { FarmService, TractorService, SiloService, MarketService, SeedService, FuelService } from '../services';
-import { BotConfig, AvailableTask, BatchActionUnit } from '../types';
+import { BotConfig, AvailableTask,MarketSeed,BatchActionUnit } from '../types';
 import { Logger } from '../utils/logger';
 
 export class FarmBot {
@@ -41,7 +41,8 @@ export class FarmBot {
      */
     async start(): Promise<void> {
         this.logger.info('🚀 Starting Farm Manager Bot...');
-        this.logger.info(`Check interval: ${this.config.checkIntervalMs / 1000}s`);
+        this.logger.info(`Check min interval: ${this.config.checkIntervalMinMs / 1000}s`);
+        this.logger.info(`Check max interval: ${this.config.checkIntervalMaxMs / 1000}s`);
         this.logger.info(`Silo sell threshold: ${this.config.siloSellThreshold}%`);
 
         this.isRunning = true;
@@ -49,12 +50,8 @@ export class FarmBot {
         // Execute first time immediately
         await this.runCycle();
 
-        // Set up interval
-        this.intervalId = setInterval(async () => {
-            if (this.isRunning) {
-                await this.runCycle();
-            }
-        }, this.config.checkIntervalMs);
+        // Schedule next run with random interval
+        this.scheduleNextRun();
 
         this.logger.success('Bot started successfully!');
     }
@@ -104,6 +101,79 @@ export class FarmBot {
     }
 
     /**
+ * Schedules the next run with a random interval between min and max
+ */
+    private scheduleNextRun(): void {
+        if (!this.isRunning) return;
+        
+        // Check if we should pause during night time (02:00 - 06:00)
+        if (this.config.pauseAtNight) {
+            const now = new Date();
+            const currentHour = now.getHours();
+            
+            // If it's between 02:00 and 06:00, schedule for 06:00
+            if (currentHour >= 2 && currentHour < 6) {
+                const resumeTime = new Date();
+                resumeTime.setHours(6, 0, 0, 0);
+                const timeUntilResume = resumeTime.getTime() - now.getTime();
+                
+                this.logger.info(`🌙 Night pause active. Resuming at 06:00 (in ${Math.round(timeUntilResume / 1000 / 60)} minutes)`);
+                
+                this.intervalId = setTimeout(async () => {
+                    if (this.isRunning) {
+                        this.logger.info('☀️ Resuming bot after night pause');
+                        await this.runCycle();
+                        this.scheduleNextRun();
+                    }
+                }, timeUntilResume);
+                return;
+            }
+            
+            // Check if next run would fall into night time
+            const randomInterval = Math.floor(
+                Math.random() * (this.config.checkIntervalMaxMs - this.config.checkIntervalMinMs) + 
+                this.config.checkIntervalMinMs
+            );
+            
+            const nextRunTime = new Date(now.getTime() + randomInterval);
+            const nextRunHour = nextRunTime.getHours();
+            
+            // If next run would be during night, schedule for 06:00 instead
+            if (nextRunHour >= 2 && nextRunHour < 6) {
+                const resumeTime = new Date(nextRunTime);
+                resumeTime.setHours(6, 0, 0, 0);
+                const timeUntilResume = resumeTime.getTime() - now.getTime();
+                
+                this.logger.info(`🌙 Next run would be during night. Scheduling for 06:00 instead`);
+                
+                this.intervalId = setTimeout(async () => {
+                    if (this.isRunning) {
+                        this.logger.info('☀️ Resuming bot after night pause');
+                        await this.runCycle();
+                        this.scheduleNextRun();
+                    }
+                }, timeUntilResume);
+                return;
+            }
+        }
+        
+        // Normal scheduling with random interval
+        const randomInterval = Math.floor(
+            Math.random() * (this.config.checkIntervalMaxMs - this.config.checkIntervalMinMs) + 
+            this.config.checkIntervalMinMs
+        );
+        
+        this.logger.info(`Next run scheduled in ${randomInterval / 1000}s`);
+        
+        this.intervalId = setTimeout(async () => {
+            if (this.isRunning) {
+                await this.runCycle();
+                this.scheduleNextRun();
+            }
+        }, randomInterval);
+    }
+
+    /**
      * Checks and executes pending harvests
      */
     private async checkAndExecuteHarvesting(): Promise<void> {
@@ -127,7 +197,7 @@ export class FarmBot {
      * Checks and executes pending seeding (with Smart Seeding)
      */
     private async checkAndExecuteFertilizing(): Promise<void> {
-        this.logger.debugLog('Checking available seeding...');
+        this.logger.debugLog('Checking available fertilizing...');
 
         const tasks = await this.farmService.getFertilizingTasks();
 
@@ -225,6 +295,11 @@ export class FarmBot {
             `Executing ${task.type} on "${task.farmlandName}" (${task.area}ha)`
         );
 
+        // Add random delay between 3 and 10 seconds to appear more human
+        const randomDelay = Math.floor(Math.random() * 7000) + 3000; // 3000ms to 10000ms
+        this.logger.info(`Waiting ${randomDelay / 1000}s before executing task...`);
+        await new Promise(resolve => setTimeout(resolve, randomDelay));
+
         try {
             // For seeding, plowing and fertilizing, use the new multi-tractor method
             if (task.type === 'seeding' || task.type === 'plowing' || task.type === 'fertilizing') {
@@ -268,7 +343,7 @@ export class FarmBot {
         }
 
         // Check maximum operation time (6 hours = 21600 seconds)
-        const MAX_OPERATION_HOURS = 6;
+        const MAX_OPERATION_HOURS = 24;
         const MAX_OPERATION_SECONDS = MAX_OPERATION_HOURS * 3600;
 
         if (optimal.estimatedDuration > MAX_OPERATION_SECONDS) {
@@ -547,6 +622,14 @@ export class FarmBot {
      * Note: Fertilizing is not yet fully implemented
      */
     async testFertilizing(): Promise<void> {
+        
+        const marketData = await this.api.getMarketSeeds();
+        const marketSeeds = marketData.seed as MarketSeed[];
+        for (const seed of marketSeeds) {
+            this.logger.info(`🌱 Seed "${seed.name}"...`);
+        }
+        return;
+        
         const tasks = await this.farmService.getFertilizingTasks();
         const fertilizingTasks = tasks.filter(task => task.type === 'fertilizing');
         
