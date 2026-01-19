@@ -343,7 +343,7 @@ export class FarmBot {
         }
 
         // Check maximum operation time (6 hours = 21600 seconds)
-        const MAX_OPERATION_HOURS = 24;
+        const MAX_OPERATION_HOURS = 6;
         const MAX_OPERATION_SECONDS = MAX_OPERATION_HOURS * 3600;
 
         if (optimal.estimatedDuration > MAX_OPERATION_SECONDS && !this.config.disableMaxTaskDuration) {
@@ -426,7 +426,7 @@ export class FarmBot {
         if (optimal.estimatedDuration > MAX_OPERATION_SECONDS && !this.config.disableMaxTaskDuration) {
             const estimatedHours = (optimal.estimatedDuration / 3600).toFixed(1);
             this.logger.warn(
-                `⏱️ Harvest on "${task.farmlandName}" ignored: estimated time of ${estimatedHours}h exceeds limit of ${MAX_OPERATION_HOURS}h.`
+                `⏱️ Harvest on "${task.farmlandName}" ignored:  ${estimatedHours}h exceeds limit of ${MAX_OPERATION_HOURS}h.`
             );
             return false;
         }
