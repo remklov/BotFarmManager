@@ -150,7 +150,7 @@ export class MarketService {
             // Implement logic to check if the product has a good price
             if (product.pctFull > 0.01) {
                 const currentPrice = await this.getCropValue(product.id);
-                const isGoodPrice = await this.isGoodPrice(product.id, product.pctFull);
+                const isGoodPrice = await this.isGoodPrice(product, product.pctFull);
                 if (isGoodPrice || product.pctFull >= threshold) {
                     if (currentPrice) {
                         this.logger.market(
@@ -178,20 +178,35 @@ export class MarketService {
     /**
      * Tests if the current price is actually a good price, depending on the maxprice of the last 7 days
      */
-    async isGoodPrice(cropId: number, siloPctFull: number): Promise<boolean> {
-        const currentPrice = await this.getCropValue(cropId);
+    async isGoodPrice(product: any, siloPctFull: number): Promise<boolean> {
+        const currentPrice = await this.getCropValue(product.id);
         if (currentPrice === null || currentPrice === undefined) {
             return true;
         }
 
-        const maxPrice = await this.getMaxPrice(cropId, 7);
+        const maxPrice = await this.getMaxPrice(product.id, 7);
         const allowedDeviationPercent = siloPctFull / 4;
         const minAcceptablePrice = maxPrice * (1 - allowedDeviationPercent / 100);
+
+        
+        this.logger.market(`Max. price for ${product.name} in the last 7 days was $(${maxPrice})`);
 
         return currentPrice.cropValuePer1k >= minAcceptablePrice;
     }
 
     async getMaxPrice(cropId: number, lookBack: number): Promise<number> {
+        if (cropId === 1) {
+            return 1800;
+        }
+        if (cropId === 4) {
+            return 2500;
+        }
+        if (cropId === 12) {
+            return 6000;
+        }
+        if (cropId === 30) {
+            return 2000;
+        }
         return 6000;
     }
 

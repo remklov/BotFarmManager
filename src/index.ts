@@ -22,11 +22,8 @@ function displayMenu(): void {
     console.log('Please select an option:');
     console.log('  1. Test Authentication');
     console.log('  2. Run Bot');
-    console.log('  3. Test Harvesting');
-    console.log('  4. Test Seeding');
-    console.log('  5. Test Plowing');
-    console.log('  6. Test Fertilizing');
-    console.log('  7. Exit');
+    console.log('  3. Get Crop Data');
+    console.log('  4. Exit');
     console.log('');
 }
 
@@ -128,32 +125,9 @@ async function testAuthentication(): Promise<void> {
     logger.info('\n✅ Authentication test completed');
 }
 
-// Test harvesting
-async function testHarvesting(): Promise<void> {
-    logger.info('🌾 Testing harvesting...\n');
-    
-    const config = await loadConfig();
-    
-    if (!config || !config.phpSessionId) {
-        logger.error('❌ Cannot test harvesting - authentication failed');
-        return;
-    }
-    
-    logger.info(`Debug mode: ${config.debug ? 'ON' : 'OFF'}`);
-    
-    const bot = new FarmBot(config);
-    
-    try {
-        await bot.testHarvesting();
-        logger.info('\n✅ Harvesting test completed');
-    } catch (error) {
-        logger.error('Error during harvesting test', error as Error);
-    }
-}
 
-// Test seeding
-async function testSeeding(): Promise<void> {
-    logger.info('🌱 Testing seeding...\n');
+// Get Crop Data
+async function getCropData(): Promise<void> {
     
     const config = await loadConfig();
     
@@ -167,56 +141,9 @@ async function testSeeding(): Promise<void> {
     const bot = new FarmBot(config);
     
     try {
-        await bot.testSeeding();
-        logger.info('\n✅ Seeding test completed');
+        await bot.getCropData();
     } catch (error) {
-        logger.error('Error during seeding test', error as Error);
-    }
-}
-
-// Test plowing
-async function testPlowing(): Promise<void> {
-    logger.info('🚜 Testing plowing...\n');
-    
-    const config = await loadConfig();
-    
-    if (!config || !config.phpSessionId) {
-        logger.error('❌ Cannot test plowing - authentication failed');
-        return;
-    }
-    
-    logger.info(`Debug mode: ${config.debug ? 'ON' : 'OFF'}`);
-    
-    const bot = new FarmBot(config);
-    
-    try {
-        await bot.testPlowing();
-        logger.info('\n✅ Plowing test completed');
-    } catch (error) {
-        logger.error('Error during plowing test', error as Error);
-    }
-}
-
-// Test fertilizing
-async function testFertilizing(): Promise<void> {
-    logger.info('🔬 Testing fertilizing...\n');
-    
-    const config = await loadConfig();
-    
-    if (!config || !config.phpSessionId) {
-        logger.error('❌ Cannot test fertilizing - authentication failed');
-        return;
-    }
-    
-    logger.info(`Debug mode: ${config.debug ? 'ON' : 'OFF'}`);
-    
-    const bot = new FarmBot(config);
-    
-    try {
-        await bot.testFertilizing();
-        logger.info('\n✅ Fertilizing test completed');
-    } catch (error) {
-        logger.error('Error during fertilizing test', error as Error);
+        logger.error('Error getting crop data', error as Error);
     }
 }
 
@@ -292,22 +219,8 @@ async function handleMenuSelection(choice: string): Promise<void> {
             showMenu();
             break;
         case '3':
-            await testHarvesting();
-            showMenu();
-            break;
+            await getCropData();
         case '4':
-            await testSeeding();
-            showMenu();
-            break;
-        case '5':
-            await testPlowing();
-            showMenu();
-            break;
-        case '6':
-            await testFertilizing();
-            showMenu();
-            break;
-        case '7':
             logger.info('👋 Goodbye!');
             if (rl) {
                 rl.close();
@@ -316,7 +229,7 @@ async function handleMenuSelection(choice: string): Promise<void> {
             break;
         default:
             logger.warn(`Invalid option: ${trimmedChoice}`);
-            logger.info('Please select 1, 2, 3, 4, 5, 6, or 7');
+            logger.info('Please select 1, 2, 3, or 4');
             showMenu();
             break;
     }

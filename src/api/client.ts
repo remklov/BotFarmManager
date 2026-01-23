@@ -167,6 +167,7 @@ export class ApiClient {
     // ============================================
 
     async getCropValues(): Promise<CropValuesResponse> {
+    
         const formData = this.buildFormData({
             cropId: 0,
             lastId: 0,
@@ -178,7 +179,7 @@ export class ApiClient {
             formData,
             { params: { cropId: 0, lastId: 0, currentCropMultiplier: 'undefined' } }
         );
-
+        
         this.updateBT(response.data);
         return response.data;
     }

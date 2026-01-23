@@ -133,10 +133,7 @@ export class SeedService {
                     };
                 }
             }
-        }
-        
-
-        
+        }        
 
         this.logger.warn('[SeedService] No suitable seed found');
         return null;

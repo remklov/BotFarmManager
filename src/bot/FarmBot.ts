@@ -4,7 +4,7 @@
 
 import { ApiClient } from '../api/client';
 import { FarmService, TractorService, SiloService, MarketService, SeedService, FuelService } from '../services';
-import { BotConfig, AvailableTask,MarketSeed,BatchActionUnit } from '../types';
+import { BotConfig, AvailableTask,MarketSeed, BatchActionUnit } from '../types';
 import { Logger } from '../utils/logger';
 
 export class FarmBot {
@@ -585,63 +585,22 @@ export class FarmBot {
     }
 
     /**
-     * Test harvesting - checks and executes available harvests
+     * Get all crop seeds
      */
-    async testHarvesting(): Promise<void> {
-        await this.checkAndExecuteHarvesting();
-    }
-
-    /**
-     * Test seeding - checks and executes available seeding tasks
-     */
-    async testSeeding(): Promise<void> {
-        await this.checkAndExecuteSeeding();
-    }
-
-    /**
-     * Test plowing - checks and executes available plowing tasks
-     */
-    async testPlowing(): Promise<void> {
-        const tasks = await this.farmService.getCultivatingTasks();
-        const plowingTasks = tasks.filter(task => task.type === 'plowing');
-        
-        if (plowingTasks.length === 0) {
-            this.logger.info('No plowing tasks available');
-            return;
-        }
-
-        this.logger.task(`${plowingTasks.length} plowing task(s) available`);
-
-        for (const task of plowingTasks) {
-            await this.executeTask(task);
-        }
-    }
-
-    /**
-     * Test fertilizing - checks for available fertilizing tasks
-     * Note: Fertilizing is not yet fully implemented
-     */
-    async testFertilizing(): Promise<void> {
-        
+    async getCropData(): Promise<void> {
+        // 2. Get available seeds from market
         const marketData = await this.api.getMarketSeeds();
+
+        if (!marketData.seed || !Array.isArray(marketData.seed)) {
+            this.logger.warn('[SeedService] Could not get seeds from market');
+        }
+
         const marketSeeds = marketData.seed as MarketSeed[];
+
+        // Create map of unlocked seeds by ID
+        const unlockedSeeds = new Map<number, MarketSeed>();
         for (const seed of marketSeeds) {
-            this.logger.info(`🌱 Seed "${seed.name}"...`);
-        }
-        return;
-        
-        const tasks = await this.farmService.getFertilizingTasks();
-        const fertilizingTasks = tasks.filter(task => task.type === 'fertilizing');
-        
-        if (fertilizingTasks.length === 0) {
-            this.logger.info('No fertilizing tasks available');
-            return;
-        }
-
-        this.logger.task(`${fertilizingTasks.length} fertilizing task(s) available`);
-
-        for (const task of fertilizingTasks) {
-            await this.executeTask(task);
+            this.logger.info(`${seed.name} (${seed.id})`);
         }
     }
 
