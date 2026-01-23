@@ -9,6 +9,32 @@ export enum LogLevel {
     ERROR = 3,
 }
 
+export interface LogEntry {
+    timestamp: string;
+    prefix: string;
+    level: string;
+    message: string;
+}
+
+// Global log buffer for web interface
+const LOG_BUFFER_SIZE = 200;
+const logBuffer: LogEntry[] = [];
+
+export function getLogBuffer(): LogEntry[] {
+    return [...logBuffer];
+}
+
+export function clearLogBuffer(): void {
+    logBuffer.length = 0;
+}
+
+function addToBuffer(entry: LogEntry): void {
+    logBuffer.push(entry);
+    if (logBuffer.length > LOG_BUFFER_SIZE) {
+        logBuffer.shift();
+    }
+}
+
 export class Logger {
     private debug: boolean;
     private prefix: string;
@@ -26,49 +52,57 @@ export class Logger {
         return `[${this.formatTime()}] [${this.prefix}] [${level}] ${message}`;
     }
 
+    private logAndBuffer(level: string, message: string, consoleMethod: 'log' | 'warn' | 'error' = 'log'): void {
+        const timestamp = this.formatTime();
+        const formatted = `[${timestamp}] [${this.prefix}] [${level}] ${message}`;
+        console[consoleMethod](formatted);
+        addToBuffer({ timestamp, prefix: this.prefix, level, message });
+    }
+
     log(message: string): void {
-        console.log(this.formatMessage('INFO', message));
+        this.logAndBuffer('INFO', message);
     }
 
     info(message: string): void {
-        console.log(this.formatMessage('INFO', message));
+        this.logAndBuffer('INFO', message);
     }
 
     warn(message: string): void {
-        console.warn(this.formatMessage('WARN', message));
+        this.logAndBuffer('WARN', message, 'warn');
     }
 
     error(message: string, error?: Error): void {
-        console.error(this.formatMessage('ERROR', message));
+        this.logAndBuffer('ERROR', message, 'error');
         if (error) {
             console.error(error.stack || error.message);
+            addToBuffer({ timestamp: this.formatTime(), prefix: this.prefix, level: 'ERROR', message: error.stack || error.message });
         }
     }
 
     debugLog(message: string): void {
         if (this.debug) {
-            console.log(this.formatMessage('DEBUG', message));
+            this.logAndBuffer('DEBUG', message);
         }
     }
 
     success(message: string): void {
-        console.log(this.formatMessage('SUCCESS', `✅ ${message}`));
+        this.logAndBuffer('SUCCESS', message);
     }
 
     task(message: string): void {
-        console.log(this.formatMessage('TASK', `🚜 ${message}`));
+        this.logAndBuffer('TASK', message);
     }
 
     silo(message: string): void {
-        console.log(this.formatMessage('SILO', `🌾 ${message}`));
+        this.logAndBuffer('SILO', message);
     }
 
     market(message: string): void {
-        console.log(this.formatMessage('MARKET', `💰 ${message}`));
+        this.logAndBuffer('MARKET', message);
     }
 
     fuel(message: string): void {
-        console.log(this.formatMessage('FUEL', `⛽ ${message}`));
+        this.logAndBuffer('FUEL', message);
     }
 }
 
