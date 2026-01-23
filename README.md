@@ -130,6 +130,65 @@ npm start
 
 ---
 
+## 🌐 Web Interface
+
+The bot includes a web-based dashboard for monitoring and control.
+
+### Running the Web Server
+
+```bash
+# Build the project first (required after code changes)
+npm run build
+
+# Start the web server
+npm start
+```
+
+Or for development (no build needed):
+```bash
+npm run dev
+```
+
+The web server runs on **port 3000** by default. Access it at:
+```
+http://localhost:3000
+```
+
+### Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Web server port | `3000` |
+
+To run on a different port:
+```bash
+PORT=8080 npm start
+```
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/status` | Get bot running state |
+| GET | `/api/logs` | Get log buffer (supports `?since=timestamp`) |
+| DELETE | `/api/logs` | Clear log buffer |
+| POST | `/api/start` | Start the bot |
+| POST | `/api/stop` | Stop the bot |
+
+### Running on a Remote Server
+
+1. Ensure the port is open in your firewall
+2. Set the `PORT` environment variable if needed
+3. Access via `http://your-server-ip:3000`
+
+For production deployments, consider using a process manager like PM2:
+```bash
+npm install -g pm2
+pm2 start npm --name "farm-bot" -- start
+```
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -138,6 +197,8 @@ src/
 │   └── client.ts        # HTTP client for the API
 ├── bot/
 │   └── FarmBot.ts       # Main bot logic
+├── public/
+│   └── index.html       # Web dashboard frontend
 ├── services/
 │   ├── AuthService.ts   # Login and session management
 │   ├── FarmService.ts   # Farm management
@@ -150,6 +211,7 @@ src/
 │   └── index.ts         # TypeScript interfaces
 ├── utils/
 │   └── logger.ts        # Logging system
+├── server.ts            # Express web server
 └── index.ts             # Entry point
 ```
 
