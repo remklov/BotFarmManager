@@ -22,7 +22,8 @@ export function createServer(port: number = 3000): express.Application {
     const app = express();
 
     app.use(express.json());
-    app.use(express.static(path.join(__dirname, 'public')));
+    // Serve static files from src/public (works from both src/ and dist/)
+    app.use(express.static(path.join(process.cwd(), 'src', 'public')));
 
     // GET /api/status - Returns bot running state
     app.get('/api/status', (_req: Request, res: Response) => {
