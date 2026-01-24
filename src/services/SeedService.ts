@@ -5,6 +5,7 @@
 import { ApiClient } from '../api/client';
 import { CropScore, MarketSeed, SeedInventory } from '../types';
 import { Logger } from '../utils/logger';
+import { getConfiguredCropForFarmland } from '../server';
 
 export interface BestSeedResult {
     cropId: number;
@@ -28,12 +29,19 @@ export class SeedService {
 
     /**
      * Determines the best seed for a farm based on:
-     * 1. Land cropScores
-     * 2. Unlocked seeds in the market
-     * 3. Ability to purchase
+     * 1. Configured crop for this farmland (if set)
+     * 2. Land cropScores
+     * 3. Unlocked seeds in the market
+     * 4. Ability to purchase
      */
     async getBestSeedForFarmland(farmlandId: number, area: number, forceSeedName?: string): Promise<BestSeedResult | null> {
         this.logger.debugLog(`[SeedService] Searching for best seed for farmlandId: ${farmlandId}, area: ${area}ha`);
+
+        // 0. Check for configured crop for this farmland
+        const configuredCropId = getConfiguredCropForFarmland(farmlandId);
+        if (configuredCropId) {
+            this.logger.info(`🌱 Using configured crop (ID: ${configuredCropId}) for farmland ${farmlandId}`);
+        }
 
         // 1. Get cropScores from land
         const farmlandData = await this.api.getFarmlandData(farmlandId);
@@ -70,7 +78,42 @@ export class SeedService {
             .map(([name, data]) => ({ name, ...data }))
             .sort((a, b) => b.score - a.score);
 
-        // 4. Find the best available seed        
+        // 4. Check for configured crop first (highest priority)
+        if (configuredCropId) {
+            for (const crop of sortedScores) {
+                if (crop.id === configuredCropId) {
+                    const marketSeed = unlockedSeeds.get(crop.id);
+
+                    if (marketSeed) {
+                        const requiredAmount = Math.ceil(area * marketSeed.kgPerHa);
+                        const currentStock = await this.getSeedStock(crop.id);
+                        const needToBuy = Math.max(0, requiredAmount - currentStock);
+
+                        this.logger.info(
+                            `🌱 Configured seed: ${crop.name} (Score: ${crop.score}) - ` +
+                            `Needed: ${requiredAmount}kg, Stock: ${currentStock}kg, Buy: ${needToBuy}kg`
+                        );
+
+                        return {
+                            cropId: crop.id,
+                            cropName: crop.name,
+                            score: crop.score,
+                            kgPerHa: marketSeed.kgPerHa,
+                            seedCost: marketSeed.seedCost,
+                            requiredAmount,
+                            currentStock,
+                            needToBuy,
+                        };
+                    } else {
+                        this.logger.warn(`[SeedService] Configured crop ${crop.name} (ID: ${configuredCropId}) is not available in market`);
+                    }
+                }
+            }
+            // If configured crop not found in cropScores, log warning and fall through to normal logic
+            this.logger.warn(`[SeedService] Configured crop ID ${configuredCropId} not found, falling back to auto selection`);
+        }
+
+        // 5. Find the best available seed
         if (forceSeedName) {
             this.logger.info(`🌱 Forcing seed: ${forceSeedName}`);
             for (const crop of sortedScores) {

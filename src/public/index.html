@@ -13,188 +13,509 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #2d5016 0%, #4a7c23 100%);
+            background: #1a1a2e;
             min-height: 100vh;
+            color: #e0e0e0;
+        }
+
+        /* Column Layout */
+        .app-container {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+            border-bottom: 1px solid #2d4a6f;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            padding: 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
-        .container {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            padding: 40px;
-            text-align: center;
-            max-width: 900px;
-            width: 100%;
-        }
-
-        h1 {
-            color: #2d5016;
-            margin-bottom: 10px;
-            font-size: 28px;
-        }
-
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-
-        .status-container {
-            margin-bottom: 30px;
-        }
-
-        .status-label {
-            font-size: 14px;
-            color: #888;
-            margin-bottom: 8px;
-        }
-
-        .status-indicator {
-            display: inline-flex;
+        .header-left {
+            display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 12px 24px;
-            border-radius: 50px;
-            font-size: 18px;
+            gap: 16px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            color: #4fc3f7;
             font-weight: 600;
         }
 
-        .status-indicator.running {
-            background: #e8f5e9;
-            color: #2e7d32;
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
         }
 
-        .status-indicator.stopped {
-            background: #ffebee;
-            color: #c62828;
+        .status-badge.running {
+            background: rgba(76, 175, 80, 0.2);
+            color: #81c784;
+            border: 1px solid #4caf50;
+        }
+
+        .status-badge.stopped {
+            background: rgba(244, 67, 54, 0.2);
+            color: #ef5350;
+            border: 1px solid #f44336;
         }
 
         .status-dot {
-            width: 12px;
-            height: 12px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
         }
 
-        .status-indicator.running .status-dot {
+        .status-badge.running .status-dot {
             background: #4caf50;
             animation: pulse 2s infinite;
         }
 
-        .status-indicator.stopped .status-dot {
+        .status-badge.stopped .status-dot {
             background: #f44336;
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(76, 175, 80, 0); }
         }
 
-        .buttons {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-        }
-
-        button {
-            padding: 14px 32px;
-            font-size: 16px;
-            font-weight: 600;
-            border: none;
-            border-radius: 8px;
+        /* Power Button */
+        .power-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
         }
 
-        button:disabled {
+        .power-btn.off {
+            border-color: #4caf50;
+            color: #4caf50;
+        }
+
+        .power-btn.off:hover {
+            background: rgba(76, 175, 80, 0.2);
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .power-btn.on {
+            border-color: #f44336;
+            color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+        }
+
+        .power-btn.on:hover {
+            background: rgba(244, 67, 54, 0.2);
+            box-shadow: 0 0 20px rgba(244, 67, 54, 0.4);
+        }
+
+        .power-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            gap: 24px;
+        }
+
+        /* Section Styles */
+        .section {
+            background: #16213e;
+            border-radius: 12px;
+            border: 1px solid #2d4a6f;
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: rgba(45, 74, 111, 0.3);
+            padding: 12px 16px;
+            border-bottom: 1px solid #2d4a6f;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4fc3f7;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .section-content {
+            padding: 16px;
+        }
+
+        /* Collapsible sections */
+        .section-header.collapsible {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .section-header.collapsible:hover {
+            background: rgba(45, 74, 111, 0.5);
+        }
+
+        .collapse-icon {
+            transition: transform 0.2s ease;
+            margin-right: 8px;
+        }
+
+        .section.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .section.collapsed .section-content {
+            display: none;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+        }
+
+        /* Silo styles */
+        .silo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .silo-item {
+            background: rgba(45, 74, 111, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .silo-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .silo-product-name {
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+
+        .silo-sell-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: #81c784;
+            transition: all 0.2s;
+        }
+
+        .silo-sell-btn:hover {
+            background: rgba(129, 199, 132, 0.2);
+            color: #a5d6a7;
+        }
+
+        .silo-sell-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
 
-        .btn-start {
-            background: #4caf50;
-            color: white;
+        .silo-progress {
+            height: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+            overflow: hidden;
         }
 
-        .btn-start:hover:not(:disabled) {
-            background: #43a047;
-            transform: translateY(-2px);
+        .silo-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4fc3f7, #81c784);
+            transition: width 0.3s ease;
         }
 
-        .btn-stop {
-            background: #f44336;
-            color: white;
+        .silo-progress-bar.high {
+            background: linear-gradient(90deg, #ffb74d, #ff8a65);
         }
 
-        .btn-stop:hover:not(:disabled) {
-            background: #e53935;
-            transform: translateY(-2px);
+        .silo-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #888;
         }
 
-        .message {
-            margin-top: 20px;
+        .silo-amount {
+            color: #4fc3f7;
+        }
+
+        .silo-summary {
+            display: flex;
+            gap: 16px;
             padding: 12px;
+            background: rgba(45, 74, 111, 0.2);
             border-radius: 8px;
-            font-size: 14px;
-            display: none;
+            margin-bottom: 16px;
         }
 
-        .message.success {
-            background: #e8f5e9;
-            color: #2e7d32;
-            display: block;
+        .silo-summary-item {
+            display: flex;
+            flex-direction: column;
         }
 
-        .message.error {
-            background: #ffebee;
-            color: #c62828;
-            display: block;
+        .silo-summary-label {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
         }
 
-        .logs-container {
-            margin-top: 30px;
-            text-align: left;
+        .silo-summary-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #4fc3f7;
         }
 
-        .logs-header {
+        /* Farms Grid */
+        .farms-container {
+            flex: 1;
+        }
+
+        .farms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .farm-card {
+            background: #1a1a2e;
+            border-radius: 8px;
+            border: 1px solid #2d4a6f;
+            padding: 16px;
+        }
+
+        .farm-card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #2d4a6f;
         }
 
-        .logs-header h2 {
-            font-size: 16px;
-            color: #333;
-            margin: 0;
+        .farm-name {
+            font-weight: 600;
+            color: #81c784;
         }
 
-        .btn-clear {
-            background: #9e9e9e;
-            color: white;
-            padding: 6px 12px;
+        .farm-area {
             font-size: 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+            color: #888;
         }
 
-        .btn-clear:hover {
-            background: #757575;
+        .field-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .field-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(45, 74, 111, 0.2);
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .field-item:hover {
+            background: rgba(45, 74, 111, 0.4);
+        }
+
+        .field-name {
+            color: #e0e0e0;
+        }
+
+        .field-status {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .field-status.pending { background: #ff980020; color: #ffb74d; }
+        .field-status.ready { background: #4caf5020; color: #81c784; }
+        .field-status.growing { background: #2196f320; color: #64b5f6; }
+        .field-status.harvesting { background: #ff980020; color: #ffb74d; }
+        .field-status.plowing { background: #795548aa; color: #d7ccc8; }
+        .field-status.seeding { background: #8bc34a20; color: #aed581; }
+        .field-status.maturing { background: #4caf5020; color: #81c784; }
+        .field-status.operating { background: #2196f320; color: #64b5f6; }
+
+        .farm-country {
+            font-size: 11px;
+            color: #888;
+            margin-left: 8px;
+            padding: 2px 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+
+        .farm-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #2d4a6f;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .tractor-count {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .status-summary {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .field-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .field-area {
+            font-size: 10px;
+            color: #666;
+        }
+
+        .field-status-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .crop-name {
+            font-size: 11px;
+            color: #aed581;
+        }
+
+        .field-progress {
+            font-size: 10px;
+            color: #4fc3f7;
+            font-weight: 600;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: #666;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        /* Debug Section */
+        .debug-section {
+            margin-top: auto;
+        }
+
+        .debug-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: #4fc3f7;
+            color: #1a1a2e;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #29b6f6;
+        }
+
+        .btn-secondary {
+            background: #2d4a6f;
+            color: #e0e0e0;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #3d5a7f;
+        }
+
+        /* Logs Section */
+        .logs-section {
+            max-height: 300px;
         }
 
         .logs {
-            background: #1e1e1e;
-            border-radius: 8px;
-            padding: 15px;
-            height: 300px;
+            background: #0d1117;
+            border-radius: 6px;
+            padding: 12px;
+            height: 200px;
             overflow-y: auto;
             font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 12px;
-            line-height: 1.5;
+            font-size: 11px;
+            line-height: 1.6;
         }
 
         .log-entry {
@@ -203,18 +524,9 @@
             word-break: break-all;
         }
 
-        .log-entry .time {
-            color: #6a9955;
-        }
-
-        .log-entry .prefix {
-            color: #569cd6;
-        }
-
-        .log-entry .level {
-            font-weight: bold;
-        }
-
+        .log-entry .time { color: #6a9955; }
+        .log-entry .prefix { color: #569cd6; }
+        .log-entry .level { font-weight: bold; }
         .log-entry .level.INFO { color: #4fc3f7; }
         .log-entry .level.WARN { color: #ffb74d; }
         .log-entry .level.ERROR { color: #ef5350; }
@@ -224,73 +536,841 @@
         .log-entry .level.SILO { color: #aed581; }
         .log-entry .level.MARKET { color: #ffd54f; }
         .log-entry .level.FUEL { color: #ff8a65; }
+        .log-entry .msg-text { color: #d4d4d4; }
 
-        .log-entry .msg-text {
-            color: #d4d4d4;
+        /* Selection & Mass Action Styles */
+        .field-checkbox {
+            width: 16px;
+            height: 16px;
+            margin-right: 10px;
+            cursor: pointer;
+            accent-color: #4fc3f7;
+            display: none;
+        }
+
+        .crop-config-mode .field-checkbox {
+            display: block;
+        }
+
+        .select-all-container {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .crop-config-mode .select-all-container {
+            display: flex;
+        }
+
+        .btn-set-crops.active {
+            background: #4fc3f7;
+            color: #1a1a2e;
+        }
+
+        .field-item-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex: 1;
+        }
+
+        .select-all-container label {
+            cursor: pointer;
+        }
+
+        .mass-action-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+            border-top: 1px solid #2d4a6f;
+            padding: 16px 24px;
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 200;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .mass-action-bar.show {
+            display: flex;
+        }
+
+        .mass-action-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .selected-count {
+            font-size: 14px;
+            color: #4fc3f7;
+            font-weight: 600;
+        }
+
+        .mass-action-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .crop-select {
+            background: #1a1a2e;
+            border: 1px solid #2d4a6f;
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #e0e0e0;
+            font-size: 13px;
+            min-width: 200px;
+            cursor: pointer;
+        }
+
+        .crop-select:focus {
+            outline: none;
+            border-color: #4fc3f7;
+        }
+
+        .configured-crop {
+            font-size: 10px;
+            color: #4fc3f7;
+            background: rgba(79, 195, 247, 0.15);
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 4px;
+        }
+
+        .btn-clear-selection {
+            background: transparent;
+            border: 1px solid #666;
+            color: #888;
+            padding: 8px 16px;
+        }
+
+        .btn-clear-selection:hover {
+            border-color: #888;
+            color: #e0e0e0;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: #16213e;
+            border-radius: 12px;
+            border: 1px solid #2d4a6f;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #2d4a6f;
+            background: rgba(45, 74, 111, 0.3);
+        }
+
+        .modal-header h3 {
+            color: #4fc3f7;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 24px;
+            line-height: 1;
+            padding: 0;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #e0e0e0;
+        }
+
+        .modal-content {
+            padding: 20px;
+        }
+
+        .detail-section {
+            margin-bottom: 16px;
+        }
+
+        .detail-section-title {
+            font-size: 12px;
+            color: #4fc3f7;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            background: rgba(45, 74, 111, 0.2);
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+
+        .detail-label {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        .detail-value.highlight {
+            color: #81c784;
+        }
+
+        .detail-value.warning {
+            color: #ffb74d;
+        }
+
+        .capability-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .capability-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .capability-badge.active {
+            background: rgba(76, 175, 80, 0.2);
+            color: #81c784;
+            border: 1px solid #4caf50;
+        }
+
+        .capability-badge.inactive {
+            background: rgba(158, 158, 158, 0.2);
+            color: #888;
+            border: 1px solid #666;
+        }
+
+        .color-swatch {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            vertical-align: middle;
+            margin-right: 8px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        /* Toast Messages */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .toast.error {
+            background: #f44336;
+            color: white;
+        }
+
+        .toast.info {
+            background: #2196f3;
+            color: white;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Farm Manager Bot</h1>
-        <p class="subtitle">Automating your farms with intelligence</p>
-
-        <div class="status-container">
-            <div class="status-label">STATUS</div>
-            <div id="status" class="status-indicator stopped">
-                <span class="status-dot"></span>
-                <span id="status-text">Stopped</span>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>Farm Manager Bot</h1>
+                <div id="status-badge" class="status-badge stopped">
+                    <span class="status-dot"></span>
+                    <span id="status-text">Stopped</span>
+                </div>
             </div>
+            <button id="power-btn" class="power-btn off" onclick="toggleBot()" title="Start Bot">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                    <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+            </button>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Silo Display -->
+            <section class="section silo-container" id="silo-section">
+                <div class="section-header collapsible" onclick="toggleSection('silo-section')">
+                    <div class="section-title">
+                        <svg class="collapse-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                        <h2>Silo</h2>
+                    </div>
+                    <button class="btn btn-secondary" onclick="event.stopPropagation(); refreshSilo()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+                <div class="section-content">
+                    <div id="silo-content">
+                        <div class="empty-state">
+                            <p>No silo data loaded yet.<br>Click "Refresh" to load silo contents.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Farms Display -->
+            <section class="section farms-container" id="farms-section">
+                <div class="section-header collapsible" onclick="toggleSection('farms-section')">
+                    <div class="section-title">
+                        <svg class="collapse-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                        <h2>Farms & Fields</h2>
+                    </div>
+                    <div style="display: flex; gap: 8px;" onclick="event.stopPropagation()">
+                        <button class="btn btn-secondary btn-set-crops" id="btn-set-crops" onclick="toggleCropConfigMode()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5"/>
+                                <path d="M2 12l10 5 10-5"/>
+                            </svg>
+                            Set Crops
+                        </button>
+                        <button class="btn btn-secondary" onclick="refreshFarms()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M23 4v6h-6M1 20v-6h6"/>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                            </svg>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div id="farms-grid" class="farms-grid">
+                        <!-- Empty state by default -->
+                        <div class="empty-state" id="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                                <polyline points="9 22 9 12 15 12 15 22"/>
+                            </svg>
+                            <p>No farm data loaded yet.<br>Click "Fetch Pending Data" to load farms.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Debug Section -->
+            <section class="section debug-section">
+                <div class="section-header">
+                    <h2>Debug Actions</h2>
+                </div>
+                <div class="section-content">
+                    <div class="debug-actions">
+                        <button class="btn btn-primary" onclick="fetchFarmData()" id="btn-fetch-farms">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            Fetch Farm Data
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearLogs()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                            Clear Logs
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Logs Section -->
+            <section class="section logs-section">
+                <div class="section-header">
+                    <h2>Logs</h2>
+                </div>
+                <div class="section-content">
+                    <div id="logs" class="logs"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Mass Action Bar -->
+    <div id="mass-action-bar" class="mass-action-bar">
+        <div class="mass-action-info">
+            <span id="selected-count" class="selected-count">0 fields selected</span>
+            <button class="btn btn-clear-selection" onclick="clearSelection()">Clear Selection</button>
         </div>
-
-        <div class="buttons">
-            <button id="btn-start" class="btn-start" onclick="startBot()">Start</button>
-            <button id="btn-stop" class="btn-stop" onclick="stopBot()" disabled>Stop</button>
+        <div class="mass-action-controls">
+            <select id="mass-crop-select" class="crop-select">
+                <option value="">-- Select Crop --</option>
+            </select>
+            <button class="btn btn-primary" onclick="applyMassCropConfig()" id="btn-apply-mass">
+                Apply to Selected
+            </button>
         </div>
+    </div>
 
-        <div id="message" class="message"></div>
-
-        <div class="logs-container">
-            <div class="logs-header">
-                <h2>Logs</h2>
-                <button class="btn-clear" onclick="clearLogs()">Clear</button>
+    <!-- Farmland Details Modal -->
+    <div id="modal-overlay" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title">Field Details</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
-            <div id="logs" class="logs"></div>
+            <div class="modal-content" id="modal-content">
+                <div class="loading-spinner">
+                    <span class="spinner"></span>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        const statusEl = document.getElementById('status');
-        const statusTextEl = document.getElementById('status-text');
-        const btnStart = document.getElementById('btn-start');
-        const btnStop = document.getElementById('btn-stop');
-        const messageEl = document.getElementById('message');
+        // Elements
+        const statusBadge = document.getElementById('status-badge');
+        const statusText = document.getElementById('status-text');
+        const powerBtn = document.getElementById('power-btn');
         const logsEl = document.getElementById('logs');
+        const farmsGrid = document.getElementById('farms-grid');
+        const emptyState = document.getElementById('empty-state');
+        const toastEl = document.getElementById('toast');
+        const massActionBar = document.getElementById('mass-action-bar');
+        const massCropSelect = document.getElementById('mass-crop-select');
+        const selectedCountEl = document.getElementById('selected-count');
 
+        let botRunning = false;
         let lastLogTimestamp = '';
+        let selectedFields = new Set();
+        let cropsData = {};
+        let currentFarmsData = null;
+        let cropConfigMode = false;
 
+        // Update UI based on bot state
         function updateUI(running) {
+            botRunning = running;
             if (running) {
-                statusEl.className = 'status-indicator running';
-                statusTextEl.textContent = 'Running';
-                btnStart.disabled = true;
-                btnStop.disabled = false;
+                statusBadge.className = 'status-badge running';
+                statusText.textContent = 'Running';
+                powerBtn.className = 'power-btn on';
+                powerBtn.title = 'Stop Bot';
             } else {
-                statusEl.className = 'status-indicator stopped';
-                statusTextEl.textContent = 'Stopped';
-                btnStart.disabled = false;
-                btnStop.disabled = true;
+                statusBadge.className = 'status-badge stopped';
+                statusText.textContent = 'Stopped';
+                powerBtn.className = 'power-btn off';
+                powerBtn.title = 'Start Bot';
             }
         }
 
-        function showMessage(text, isError = false) {
-            messageEl.textContent = text;
-            messageEl.className = 'message ' + (isError ? 'error' : 'success');
+        // Show toast message
+        function showToast(message, type = 'info') {
+            toastEl.textContent = message;
+            toastEl.className = `toast ${type} show`;
             setTimeout(() => {
-                messageEl.className = 'message';
+                toastEl.className = 'toast';
             }, 3000);
         }
 
+        // Toggle section collapse
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                section.classList.toggle('collapsed');
+            }
+        }
+
+        // Refresh silo data
+        async function refreshSilo() {
+            const siloContent = document.getElementById('silo-content');
+            siloContent.innerHTML = '<div class="loading-spinner"><span class="spinner"></span></div>';
+
+            try {
+                const res = await fetch('/api/silo');
+                const data = await res.json();
+                if (res.ok) {
+                    renderSilo(data);
+                } else {
+                    siloContent.innerHTML = `<p style="color: #ef5350;">Failed to load silo: ${data.error || 'Unknown error'}</p>`;
+                }
+            } catch (err) {
+                siloContent.innerHTML = '<p style="color: #ef5350;">Failed to fetch silo data</p>';
+            }
+        }
+
+        // Render silo data
+        function renderSilo(data) {
+            const siloContent = document.getElementById('silo-content');
+
+            if (!data.cropSilo || !data.cropSilo.holding) {
+                siloContent.innerHTML = '<div class="empty-state"><p>No products in silo.</p></div>';
+                return;
+            }
+
+            const products = Object.values(data.cropSilo.holding);
+            if (products.length === 0) {
+                siloContent.innerHTML = '<div class="empty-state"><p>No products in silo.</p></div>';
+                return;
+            }
+
+            const totalCapacity = data.cropSilo.siloCapacity || 0;
+            const totalHolding = data.cropSilo.totalHolding || 0;
+            const pctFull = data.cropSilo.pctFull || 0;
+
+            siloContent.innerHTML = `
+                <div class="silo-summary">
+                    <div class="silo-summary-item">
+                        <span class="silo-summary-label">Total Stored</span>
+                        <span class="silo-summary-value">${totalHolding.toLocaleString()} kg</span>
+                    </div>
+                    <div class="silo-summary-item">
+                        <span class="silo-summary-label">Capacity</span>
+                        <span class="silo-summary-value">${totalCapacity.toLocaleString()} kg</span>
+                    </div>
+                    <div class="silo-summary-item">
+                        <span class="silo-summary-label">Usage</span>
+                        <span class="silo-summary-value">${pctFull.toFixed(1)}%</span>
+                    </div>
+                </div>
+                <div class="silo-grid">
+                    ${products.map(product => {
+                        const capacity = product.amount + product.remainingCapacity;
+                        const isHigh = product.pctFull >= 80;
+                        return `
+                            <div class="silo-item" data-crop-id="${product.id}">
+                                <div class="silo-item-header">
+                                    <span class="silo-product-name">${escapeHtml(product.name)}</span>
+                                    <button class="silo-sell-btn" onclick="sellProduct(${product.id}, '${escapeHtml(product.name)}')" title="Sell all ${escapeHtml(product.name)}">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                            <path d="M12 9v6"/>
+                                            <path d="M9 12h6"/>
+                                        </svg>
+                                        $
+                                    </button>
+                                </div>
+                                <div class="silo-progress">
+                                    <div class="silo-progress-bar ${isHigh ? 'high' : ''}" style="width: ${product.pctFull}%"></div>
+                                </div>
+                                <div class="silo-stats">
+                                    <span class="silo-amount">${product.amount.toLocaleString()} kg</span>
+                                    <span>${product.pctFull.toFixed(1)}%</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // Sell a product
+        async function sellProduct(cropId, productName) {
+            if (!confirm(`Sell all ${productName}?`)) {
+                return;
+            }
+
+            const btn = document.querySelector(`.silo-item[data-crop-id="${cropId}"] .silo-sell-btn`);
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;"></span>';
+            }
+
+            try {
+                const res = await fetch(`/api/silo/sell/${cropId}`, { method: 'POST' });
+                const data = await res.json();
+
+                if (res.ok && data.success === 1) {
+                    showToast(`Sold ${data.amount?.toLocaleString() || 0} kg for $${data.income?.toLocaleString() || 0}`, 'success');
+                    // Refresh silo after selling
+                    await refreshSilo();
+                } else {
+                    showToast(data.error || 'Failed to sell product', 'error');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 9v6"/><path d="M9 12h6"/></svg> $';
+                    }
+                }
+            } catch (err) {
+                showToast('Failed to sell product', 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 9v6"/><path d="M9 12h6"/></svg> $';
+                }
+            }
+        }
+
+        // Toggle crop configuration mode
+        function toggleCropConfigMode() {
+            cropConfigMode = !cropConfigMode;
+            const btn = document.getElementById('btn-set-crops');
+            const appContainer = document.querySelector('.app-container');
+
+            if (cropConfigMode) {
+                btn.classList.add('active');
+                appContainer.classList.add('crop-config-mode');
+            } else {
+                btn.classList.remove('active');
+                appContainer.classList.remove('crop-config-mode');
+                clearSelection();
+            }
+        }
+
+        // Get crop name from ID
+        function getCropName(cropId) {
+            if (!cropId) return 'Auto';
+            const crop = cropsData[String(cropId)];
+            return crop ? crop.name : `Crop #${cropId}`;
+        }
+
+        // Populate crop dropdown
+        function populateCropDropdown(selectEl, selectedCropId = null) {
+            selectEl.innerHTML = '<option value="">-- Auto (Best Score) --</option>';
+            const sortedCrops = Object.values(cropsData).sort((a, b) => a.name.localeCompare(b.name));
+            for (const crop of sortedCrops) {
+                if (!crop.unlocked) continue;
+                const option = document.createElement('option');
+                option.value = crop.id;
+                option.textContent = `${crop.name} (${crop.growTime}s grow)`;
+                if (selectedCropId && crop.id === selectedCropId) {
+                    option.selected = true;
+                }
+                selectEl.appendChild(option);
+            }
+        }
+
+        // Toggle field selection
+        function toggleFieldSelection(checkbox) {
+            const farmlandId = parseInt(checkbox.dataset.farmlandId);
+            if (checkbox.checked) {
+                selectedFields.add(farmlandId);
+            } else {
+                selectedFields.delete(farmlandId);
+            }
+            updateMassActionBar();
+            updateSelectAllCheckboxes();
+        }
+
+        // Toggle select all for a farm
+        function toggleSelectAllFarm(checkbox, farmId) {
+            const fieldCheckboxes = document.querySelectorAll(`.field-checkbox[data-farmland-id]`);
+            const farmFields = Array.from(fieldCheckboxes).filter(cb => {
+                const fieldItem = cb.closest('.field-item');
+                return fieldItem && fieldItem.dataset.farmId == farmId;
+            });
+
+            farmFields.forEach(cb => {
+                cb.checked = checkbox.checked;
+                const farmlandId = parseInt(cb.dataset.farmlandId);
+                if (checkbox.checked) {
+                    selectedFields.add(farmlandId);
+                } else {
+                    selectedFields.delete(farmlandId);
+                }
+            });
+            updateMassActionBar();
+        }
+
+        // Update select all checkboxes based on field selections
+        function updateSelectAllCheckboxes() {
+            const selectAllCheckboxes = document.querySelectorAll('.select-all-checkbox');
+            selectAllCheckboxes.forEach(checkbox => {
+                const farmId = checkbox.dataset.farmId;
+                const fieldCheckboxes = document.querySelectorAll(`.field-item[data-farm-id="${farmId}"] .field-checkbox[data-farmland-id]`);
+                const allChecked = Array.from(fieldCheckboxes).every(cb => cb.checked);
+                const someChecked = Array.from(fieldCheckboxes).some(cb => cb.checked);
+                checkbox.checked = allChecked;
+                checkbox.indeterminate = someChecked && !allChecked;
+            });
+        }
+
+        // Clear all selections
+        function clearSelection() {
+            selectedFields.clear();
+            document.querySelectorAll('.field-checkbox').forEach(cb => {
+                cb.checked = false;
+                cb.indeterminate = false;
+            });
+            updateMassActionBar();
+        }
+
+        // Update mass action bar visibility and count
+        function updateMassActionBar() {
+            const count = selectedFields.size;
+            selectedCountEl.textContent = `${count} field${count !== 1 ? 's' : ''} selected`;
+            if (count > 0) {
+                massActionBar.classList.add('show');
+            } else {
+                massActionBar.classList.remove('show');
+            }
+        }
+
+        // Apply mass crop configuration
+        async function applyMassCropConfig() {
+            const cropId = massCropSelect.value ? parseInt(massCropSelect.value) : null;
+            const farmlandIds = Array.from(selectedFields);
+
+            if (farmlandIds.length === 0) {
+                showToast('No fields selected', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('btn-apply-mass');
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Applying...';
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const farmlandId of farmlandIds) {
+                try {
+                    const res = await fetch(`/api/farmland/${farmlandId}/config`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cropId })
+                    });
+                    if (res.ok) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (err) {
+                    failCount++;
+                }
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+
+            if (successCount > 0) {
+                const cropName = cropId ? getCropName(cropId) : 'Auto';
+                showToast(`Configured ${successCount} field(s) to: ${cropName}`, 'success');
+                clearSelection();
+                // Refresh farm data to show updated configuration
+                await loadExistingFarmData();
+            }
+            if (failCount > 0) {
+                showToast(`Failed to configure ${failCount} field(s)`, 'error');
+            }
+        }
+
+        // Toggle bot on/off
+        async function toggleBot() {
+            powerBtn.disabled = true;
+            try {
+                if (botRunning) {
+                    const res = await fetch('/api/stop', { method: 'POST' });
+                    const data = await res.json();
+                    if (res.ok) {
+                        showToast('Bot stopped', 'success');
+                        updateUI(false);
+                    } else {
+                        showToast(data.error || 'Failed to stop bot', 'error');
+                    }
+                } else {
+                    const res = await fetch('/api/start', { method: 'POST' });
+                    const data = await res.json();
+                    if (res.ok) {
+                        showToast('Bot started', 'success');
+                        updateUI(true);
+                    } else {
+                        showToast(data.error || 'Failed to start bot', 'error');
+                    }
+                }
+            } catch (err) {
+                showToast('Connection error', 'error');
+            }
+            powerBtn.disabled = false;
+        }
+
+        // Fetch status
         async function fetchStatus() {
             try {
                 const res = await fetch('/api/status');
@@ -301,44 +1381,197 @@
             }
         }
 
-        async function startBot() {
-            btnStart.disabled = true;
+        // Load existing farm data from master JSON
+        async function loadExistingFarmData() {
             try {
-                const res = await fetch('/api/start', { method: 'POST' });
+                const res = await fetch('/api/farms');
                 const data = await res.json();
-                if (res.ok) {
-                    showMessage('Bot started successfully');
-                    updateUI(true);
-                } else {
-                    showMessage(data.error || 'Failed to start bot', true);
-                    btnStart.disabled = false;
+                if (res.ok && data.farms && Object.keys(data.farms).length > 0) {
+                    renderFarms(data);
                 }
             } catch (err) {
-                showMessage('Failed to start bot', true);
-                btnStart.disabled = false;
+                console.log('No existing farm data to load');
             }
         }
 
-        async function stopBot() {
-            btnStop.disabled = true;
+        // Fetch farm data from all endpoints and merge
+        async function fetchFarmData() {
+            const btn = document.getElementById('btn-fetch-farms');
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Fetching...';
+
             try {
-                const res = await fetch('/api/stop', { method: 'POST' });
+                const res = await fetch('/api/debug/pending', { method: 'POST' });
                 const data = await res.json();
                 if (res.ok) {
-                    showMessage('Bot stopped successfully');
-                    updateUI(false);
+                    showToast(`Data saved to ${data.filename}`, 'success');
+                    if (data.data) {
+                        renderFarms(data.data);
+                    }
                 } else {
-                    showMessage(data.error || 'Failed to stop bot', true);
-                    btnStop.disabled = false;
+                    showToast(data.error || 'Failed to fetch data', 'error');
                 }
             } catch (err) {
-                showMessage('Failed to stop bot', true);
-                btnStop.disabled = false;
+                showToast('Failed to fetch farm data', 'error');
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+        }
+
+        // Render farms data from master data structure
+        function renderFarms(data) {
+            // Store data for later use
+            currentFarmsData = data;
+
+            // Store crops data and populate dropdown
+            if (data.crops) {
+                cropsData = data.crops;
+                populateCropDropdown(massCropSelect);
+            }
+
+            // Hide empty state
+            if (emptyState) {
+                emptyState.style.display = 'none';
+            }
+
+            // Clear existing farms (except empty state)
+            const existingCards = farmsGrid.querySelectorAll('.farm-card');
+            existingCards.forEach(card => card.remove());
+
+            // Check if we have farms data
+            if (!data.farms || Object.keys(data.farms).length === 0) {
+                if (emptyState) {
+                    emptyState.style.display = 'block';
+                    emptyState.querySelector('p').textContent = 'No farms found. Click "Fetch Farm Data" to load.';
+                }
+                return;
+            }
+
+            // State priority for sorting (lower = higher priority)
+            const statePriority = {
+                'cleared': 1,
+                'plowing': 2,
+                'seeding': 3,
+                'maturing': 4,
+                'harvesting': 5
+            };
+
+            // Get the highest priority state from a farm's fields
+            // Uses opType if available, otherwise falls back to status
+            function getFarmPriority(farm) {
+                const fields = Object.values(farm.fields || {});
+                if (fields.length === 0) return 99;
+
+                let minPriority = 99;
+                for (const field of fields) {
+                    // Use opType if available, otherwise use status
+                    const state = field.opType || field.status || 'unknown';
+                    const priority = statePriority[state];
+                    if (priority !== undefined && priority < minPriority) {
+                        minPriority = priority;
+                    }
+                }
+                return minPriority;
+            }
+
+            // Sort farms by opType priority
+            const sortedFarms = Object.values(data.farms).sort((a, b) => {
+                return getFarmPriority(a) - getFarmPriority(b);
+            });
+
+            // Render each farm
+            sortedFarms.forEach(farm => {
+                const card = document.createElement('div');
+                card.className = 'farm-card';
+
+                const fields = Object.values(farm.fields || {});
+                const totalArea = fields.reduce((sum, f) => sum + (parseFloat(f.area) || 0), 0);
+
+                // Group fields by status for summary
+                const statusCounts = {};
+                fields.forEach(f => {
+                    const status = f.opType || f.status || 'unknown';
+                    statusCounts[status] = (statusCounts[status] || 0) + 1;
+                });
+
+                const statusSummary = Object.entries(statusCounts)
+                    .map(([status, count]) => `${count} ${status}`)
+                    .join(', ');
+
+                const farmId = farm.id;
+                card.innerHTML = `
+                    <div class="farm-card-header">
+                        <div>
+                            <span class="farm-name">${escapeHtml(farm.name)}</span>
+                            <span class="farm-country">${farm.countryCode || ''}</span>
+                        </div>
+                        <span class="farm-area">${fields.length} fields | ${totalArea.toFixed(1)} ha</span>
+                    </div>
+                    <div class="farm-stats">
+                        <div class="select-all-container">
+                            <input type="checkbox" class="field-checkbox select-all-checkbox" data-farm-id="${farmId}" onchange="toggleSelectAllFarm(this, ${farmId})">
+                            <label onclick="toggleSelectAllFarm(this.previousElementSibling, ${farmId})">Select All</label>
+                        </div>
+                        <span class="status-summary">${statusSummary || 'No active operations'}</span>
+                    </div>
+                    <div class="field-list">
+                        ${fields.map(field => `
+                            <div class="field-item" data-farmland-id="${field.farmlandId}" data-farm-id="${farmId}">
+                                <input type="checkbox" class="field-checkbox" data-farmland-id="${field.farmlandId}" onchange="toggleFieldSelection(this)" onclick="event.stopPropagation()">
+                                <div class="field-item-content" onclick="showFieldDetails(${field.farmlandId}, '${escapeHtml(field.farmlandName || 'Field ' + field.farmlandId)}', ${JSON.stringify(field.details || null).replace(/"/g, '&quot;')}, ${field.configuredCropId || 'null'})">
+                                    <div class="field-info">
+                                        <span class="field-name">${escapeHtml(field.farmlandName || 'Field ' + field.farmlandId)}</span>
+                                        <span class="field-area">${parseFloat(field.area).toFixed(1)} ha${field.configuredCropId ? `<span class="configured-crop">${getCropName(field.configuredCropId)}</span>` : ''}</span>
+                                    </div>
+                                    <div class="field-status-container">
+                                        ${field.cropName ? `<span class="crop-name">${escapeHtml(field.cropName)}</span>` : ''}
+                                        <span class="field-status ${getStatusClass(field)}">${getStatusText(field)}</span>
+                                        ${field.pctCompleted !== null ? `<span class="field-progress">${field.pctCompleted.toFixed(0)}%</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                farmsGrid.appendChild(card);
+            });
+
+            // Show last updated time if available
+            if (data.lastUpdated) {
+                const updateTime = new Date(data.lastUpdated).toLocaleString();
+                showToast(`Data updated: ${updateTime}`, 'info');
             }
         }
 
+        function getStatusClass(field) {
+            const opType = field.opType || field.status || '';
+            switch (opType) {
+                case 'harvesting': return 'harvesting';
+                case 'plowing': return 'plowing';
+                case 'seeding': return 'seeding';
+                case 'maturing': return 'maturing';
+                case 'operating': return 'operating';
+                case 'cleared': return 'ready';
+                case 'plowed': return 'ready';
+                default: return 'pending';
+            }
+        }
+
+        function getStatusText(field) {
+            return field.opType || field.status || 'Unknown';
+        }
+
+        // Refresh farms
+        function refreshFarms() {
+            fetchFarmData();
+        }
+
+        // Format log entry
         function formatLogEntry(log) {
-            const time = log.timestamp.replace('T', ' ').replace('Z', '');
+            const time = log.timestamp.replace('T', ' ').replace('Z', '').substring(0, 19);
             return `<div class="log-entry">` +
                 `<span class="time">[${time}]</span> ` +
                 `<span class="prefix">[${log.prefix}]</span> ` +
@@ -348,11 +1581,13 @@
         }
 
         function escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
+        // Fetch logs
         async function fetchLogs() {
             try {
                 const url = lastLogTimestamp ? `/api/logs?since=${encodeURIComponent(lastLogTimestamp)}` : '/api/logs';
@@ -370,19 +1605,329 @@
             }
         }
 
+        // Clear logs
         async function clearLogs() {
             try {
                 await fetch('/api/logs', { method: 'DELETE' });
                 logsEl.innerHTML = '';
                 lastLogTimestamp = '';
+                showToast('Logs cleared', 'info');
             } catch (err) {
-                console.error('Failed to clear logs:', err);
+                showToast('Failed to clear logs', 'error');
             }
         }
 
-        // Initial fetch and auto-refresh
+
+        // Modal elements
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalTitle = document.getElementById('modal-title');
+        const modalContent = document.getElementById('modal-content');
+
+        // Current field being viewed in modal
+        let currentModalFarmlandId = null;
+        let currentModalConfiguredCropId = null;
+
+        // Show field details modal
+        async function showFieldDetails(fieldId, fieldName, cachedDetails, configuredCropId = null) {
+            currentModalFarmlandId = fieldId;
+            currentModalConfiguredCropId = configuredCropId;
+            modalTitle.textContent = fieldName;
+            modalOverlay.classList.add('show');
+
+            // If we have cached details, show them immediately
+            if (cachedDetails) {
+                renderFieldDetails(cachedDetails, fieldName, configuredCropId);
+                return;
+            }
+
+            // Show loading state
+            modalContent.innerHTML = '<div class="loading-spinner"><span class="spinner"></span></div>';
+
+            try {
+                const res = await fetch(`/api/farmland/${fieldId}/details`);
+                const data = await res.json();
+
+                if (res.ok) {
+                    renderFieldDetailsFromApi(data);
+                } else {
+                    modalContent.innerHTML = `<p style="color: #ef5350;">Failed to load details: ${data.error || 'Unknown error'}</p>`;
+                }
+            } catch (err) {
+                modalContent.innerHTML = '<p style="color: #ef5350;">Failed to fetch field details</p>';
+            }
+        }
+
+        // Render details from cached data
+        function renderFieldDetails(details, fieldName, configuredCropId = null) {
+            modalContent.innerHTML = `
+                <div class="detail-section">
+                    <div class="detail-section-title">Crop Configuration</div>
+                    <div class="detail-grid">
+                        <div class="detail-item" style="grid-column: 1 / -1;">
+                            <span class="detail-label">Seed to Plant</span>
+                            <select id="modal-crop-select" class="crop-select" style="width: 100%; margin-top: 4px;">
+                                <option value="">-- Auto (Best Score) --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" style="margin-top: 12px; width: 100%;" onclick="saveModalCropConfig()">
+                        Save Configuration
+                    </button>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-section-title">Location</div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">City</span>
+                            <span class="detail-value">${escapeHtml(details.city || 'N/A')}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Country</span>
+                            <span class="detail-value">${escapeHtml(details.country || 'N/A')}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-section-title">Harvest Info</div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Harvest Cycles</span>
+                            <span class="detail-value">${details.harvestCycles || 0} / ${details.maxHarvestCycles || 0}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Color</span>
+                            <span class="detail-value">
+                                <span class="color-swatch" style="background: ${details.farmlandColor || '#666'}"></span>
+                                ${details.farmlandColor || 'N/A'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-section-title">Capabilities</div>
+                    <div class="capability-badges">
+                        <span class="capability-badge ${details.canHarvest ? 'active' : 'inactive'}">Harvest</span>
+                        <span class="capability-badge ${details.canSeed ? 'active' : 'inactive'}">Seed</span>
+                        <span class="capability-badge ${details.canFertilize ? 'active' : 'inactive'}">Fertilize</span>
+                        <span class="capability-badge ${details.canPlow ? 'active' : 'inactive'}">Plow</span>
+                        <span class="capability-badge ${details.canClear ? 'active' : 'inactive'}">Clear</span>
+                        <span class="capability-badge ${details.canIrrigate ? 'active' : 'inactive'}">Irrigate</span>
+                        <span class="capability-badge ${details.isIrrigating ? 'active' : 'inactive'}">Irrigating</span>
+                    </div>
+                </div>
+
+                ${details.lastFetched ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Data Info</div>
+                    <div class="detail-item" style="width: 100%;">
+                        <span class="detail-label">Last Updated</span>
+                        <span class="detail-value">${new Date(details.lastFetched).toLocaleString()}</span>
+                    </div>
+                </div>
+                ` : ''}
+            `;
+
+            // Populate the crop dropdown after rendering
+            const modalCropSelect = document.getElementById('modal-crop-select');
+            if (modalCropSelect) {
+                populateCropDropdown(modalCropSelect, configuredCropId);
+            }
+        }
+
+        // Save crop config from modal
+        async function saveModalCropConfig() {
+            if (!currentModalFarmlandId) return;
+
+            const modalCropSelect = document.getElementById('modal-crop-select');
+            const cropId = modalCropSelect.value ? parseInt(modalCropSelect.value) : null;
+
+            try {
+                const res = await fetch(`/api/farmland/${currentModalFarmlandId}/config`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cropId })
+                });
+
+                if (res.ok) {
+                    const cropName = cropId ? getCropName(cropId) : 'Auto';
+                    showToast(`Configured to: ${cropName}`, 'success');
+                    currentModalConfiguredCropId = cropId;
+                    closeModal();
+                    await loadExistingFarmData();
+                } else {
+                    const data = await res.json();
+                    showToast(data.error || 'Failed to save configuration', 'error');
+                }
+            } catch (err) {
+                showToast('Failed to save configuration', 'error');
+            }
+        }
+
+        // Render details from fresh API response
+        function renderFieldDetailsFromApi(data) {
+            modalContent.innerHTML = `
+                <div class="detail-section">
+                    <div class="detail-section-title">Crop Configuration</div>
+                    <div class="detail-grid">
+                        <div class="detail-item" style="grid-column: 1 / -1;">
+                            <span class="detail-label">Seed to Plant</span>
+                            <select id="modal-crop-select" class="crop-select" style="width: 100%; margin-top: 4px;">
+                                <option value="">-- Auto (Best Score) --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" style="margin-top: 12px; width: 100%;" onclick="saveModalCropConfig()">
+                        Save Configuration
+                    </button>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-section-title">Location</div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">City</span>
+                            <span class="detail-value">${escapeHtml(data.city || 'N/A')}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Country</span>
+                            <span class="detail-value">${escapeHtml(data.country || 'N/A')}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-section-title">Field Info</div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Area</span>
+                            <span class="detail-value">${data.area || 0} ha</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Complexity</span>
+                            <span class="detail-value">${data.farmland?.complexityIndex || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Harvest Cycles</span>
+                            <span class="detail-value">${data.farmland?.harvestCycles || 0} / ${data.farmland?.maxHarvestCycles || 0}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Color</span>
+                            <span class="detail-value">
+                                <span class="color-swatch" style="background: ${data.farmlandColor || '#666'}"></span>
+                                ${data.farmlandColor || 'N/A'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                ${data.farmland?.cropName ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Current Crop</div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Crop</span>
+                            <span class="detail-value highlight">${escapeHtml(data.farmland.cropName)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">State</span>
+                            <span class="detail-value">${data.farmland.farmlandState || 'N/A'}</span>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+
+                ${data.operations ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Operations</div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Op Time Remain</span>
+                            <span class="detail-value">${formatTime(data.operations.opTimeRemain)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Op Progress</span>
+                            <span class="detail-value">${(data.operations.opPct * 100).toFixed(1)}%</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Grow Time Remain</span>
+                            <span class="detail-value">${formatTime(data.operations.growTimeRemain)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Grow Progress</span>
+                            <span class="detail-value">${(data.operations.growPct * 100).toFixed(1)}%</span>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="detail-section">
+                    <div class="detail-section-title">Capabilities</div>
+                    <div class="capability-badges">
+                        <span class="capability-badge ${data.canHarvest === 1 ? 'active' : 'inactive'}">Harvest</span>
+                        <span class="capability-badge ${data.canSeed === 1 ? 'active' : 'inactive'}">Seed</span>
+                        <span class="capability-badge ${data.canFertilize === 1 ? 'active' : 'inactive'}">Fertilize</span>
+                        <span class="capability-badge ${data.canPlow === 1 ? 'active' : 'inactive'}">Plow</span>
+                        <span class="capability-badge ${data.canClear === 1 ? 'active' : 'inactive'}">Clear</span>
+                        <span class="capability-badge ${data.farmland?.canIrrigate === 1 ? 'active' : 'inactive'}">Irrigate</span>
+                        <span class="capability-badge ${data.isIrrigating === 1 ? 'active' : 'inactive'}">Irrigating</span>
+                    </div>
+                </div>
+
+                ${data.instantCompleteCost ? `
+                <div class="detail-section">
+                    <div class="detail-item" style="width: 100%;">
+                        <span class="detail-label">Instant Complete Cost</span>
+                        <span class="detail-value warning">${data.instantCompleteCost} gold</span>
+                    </div>
+                </div>
+                ` : ''}
+            `;
+
+            // Populate the crop dropdown after rendering
+            const modalCropSelect = document.getElementById('modal-crop-select');
+            if (modalCropSelect) {
+                populateCropDropdown(modalCropSelect, currentModalConfiguredCropId);
+            }
+        }
+
+        // Format time in seconds to readable format
+        function formatTime(seconds) {
+            if (!seconds || seconds <= 0) return 'N/A';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            }
+            return `${minutes}m`;
+        }
+
+        // Close modal
+        function closeModal() {
+            modalOverlay.classList.remove('show');
+        }
+
+        // Close modal when clicking overlay
+        function closeModalOnOverlay(event) {
+            if (event.target === modalOverlay) {
+                closeModal();
+            }
+        }
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Initialize
         fetchStatus();
         fetchLogs();
+        loadExistingFarmData();  // Load existing master data on page load
+        refreshSilo();  // Load silo data on page load
         setInterval(fetchStatus, 5000);
         setInterval(fetchLogs, 2000);
     </script>

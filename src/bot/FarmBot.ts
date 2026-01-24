@@ -6,6 +6,7 @@ import { ApiClient } from '../api/client';
 import { FarmService, TractorService, SiloService, MarketService, SeedService, FuelService } from '../services';
 import { BotConfig, AvailableTask,MarketSeed, BatchActionUnit } from '../types';
 import { Logger } from '../utils/logger';
+import { loadMasterData, saveMasterData, mergeFarmData, mergeCropData } from '../server';
 
 export class FarmBot {
     private api: ApiClient;
@@ -94,9 +95,79 @@ export class FarmBot {
             // 4. Check and sell silo products
             await this.checkAndSellProducts();
 
+            // 5. Refresh farm data for web UI
+            await this.refreshFarmData();
+
             this.logger.info('✅ Cycle completed');
         } catch (error) {
             this.logger.error('Error during cycle', error as Error);
+        }
+    }
+
+    /**
+     * Refreshes farm data by fetching all tabs and merging into master data
+     */
+    private async refreshFarmData(): Promise<void> {
+        try {
+            this.logger.debugLog('Refreshing farm data...');
+
+            const cultivatingData = await this.api.getCultivatingTab();
+            const seedingData = await this.api.getSeedingTab();
+            const pendingData = await this.api.getPendingTab();
+            const marketData = await this.api.getMarketSeeds();
+
+            let masterData = loadMasterData();
+            masterData = mergeFarmData(masterData, cultivatingData, seedingData, pendingData);
+            masterData = mergeCropData(masterData, marketData);
+
+            // Fetch missing farmland details
+            await this.fetchMissingFarmlandDetails(masterData);
+
+            saveMasterData(masterData);
+
+            const farmCount = Object.keys(masterData.farms).length;
+            const fieldCount = Object.values(masterData.farms).reduce(
+                (sum, farm) => sum + Object.keys(farm.fields).length, 0
+            );
+            const cropCount = Object.keys(masterData.crops).length;
+            this.logger.debugLog(`Farm data refreshed: ${farmCount} farms, ${fieldCount} fields, ${cropCount} crops`);
+        } catch (error) {
+            this.logger.warn(`Failed to refresh farm data: ${(error as Error).message}`);
+        }
+    }
+
+    /**
+     * Fetches details for farmlands that don't have details yet
+     */
+    private async fetchMissingFarmlandDetails(masterData: ReturnType<typeof loadMasterData>): Promise<void> {
+        for (const farm of Object.values(masterData.farms)) {
+            for (const field of Object.values(farm.fields)) {
+                if (!field.details) {
+                    try {
+                        this.logger.debugLog(`Fetching details for field ${field.farmlandName} (${field.farmlandId})...`);
+                        const details = await this.api.getFarmlandDetails(field.farmlandId);
+                        (field as any).details = {
+                            city: details.city,
+                            country: details.country,
+                            farmlandColor: details.farmlandColor,
+                            harvestCycles: details.farmland.harvestCycles,
+                            maxHarvestCycles: details.farmland.maxHarvestCycles,
+                            canIrrigate: details.farmland.canIrrigate === 1,
+                            isIrrigating: details.isIrrigating === 1,
+                            canHarvest: details.canHarvest === 1,
+                            canSeed: details.canSeed === 1,
+                            canFertilize: details.canFertilize === 1,
+                            canPlow: details.canPlow === 1,
+                            canClear: details.canClear === 1,
+                            lastFetched: new Date().toISOString()
+                        };
+                        // Add small delay to avoid rate limiting
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    } catch (err) {
+                        this.logger.debugLog(`Failed to fetch details for field ${field.farmlandId}: ${(err as Error).message}`);
+                    }
+                }
+            }
         }
     }
 
