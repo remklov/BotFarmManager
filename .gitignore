@@ -4,3 +4,4 @@ dist/
 *.log
 nul
 .claude
+farm-data.json
