@@ -9,3 +9,4 @@ export { MarketService } from './MarketService';
 export { SeedService } from './SeedService';
 export { AuthService } from './AuthService';
 export { FuelService } from './FuelService';
+export { PriceTrackerService } from './PriceTrackerService';

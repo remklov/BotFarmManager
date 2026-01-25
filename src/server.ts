@@ -10,6 +10,9 @@ import { Logger, getLogBuffer, clearLogBuffer } from './utils/logger';
 import { ConfigManager, AccountAuth, DEFAULT_ACCOUNT_SETTINGS } from './config/ConfigManager';
 import { orchestrator } from './bot/BotOrchestrator';
 import { AuthService } from './services/AuthService';
+import { PriceTrackerService } from './services/PriceTrackerService';
+import { MarketService } from './services/MarketService';
+import { SiloService } from './services/SiloService';
 
 const logger = new Logger('Server');
 
@@ -1021,9 +1024,161 @@ export function createServer(port: number = 3000): express.Application {
         });
     });
 
+    // ============================================
+    // Price Tracker API Endpoints
+    // ============================================
+
+    // GET /api/prices/status - Get price tracker status
+    app.get('/api/prices/status', (_req: Request, res: Response) => {
+        try {
+            const summary = PriceTrackerService.getSummary();
+            res.json(summary);
+        } catch (error) {
+            logger.error('Failed to get price tracker status', error as Error);
+            res.status(500).json({ error: 'Failed to get price tracker status' });
+        }
+    });
+
+    // GET /api/prices/stats - Get all crop price statistics
+    app.get('/api/prices/stats', (_req: Request, res: Response) => {
+        try {
+            const stats = PriceTrackerService.getAllCropStats();
+            res.json({ stats });
+        } catch (error) {
+            logger.error('Failed to get price stats', error as Error);
+            res.status(500).json({ error: 'Failed to get price stats' });
+        }
+    });
+
+    // GET /api/prices/crop/:cropId - Get price history for a specific crop
+    app.get('/api/prices/crop/:cropId', (req: Request, res: Response) => {
+        try {
+            const cropId = req.params.cropId;
+            const history = PriceTrackerService.getCropPriceHistory(cropId);
+            const stats = PriceTrackerService.getCropStats(cropId);
+
+            if (!stats) {
+                res.status(404).json({ error: 'No price data for this crop' });
+                return;
+            }
+
+            res.json({
+                cropId,
+                stats,
+                history
+            });
+        } catch (error) {
+            logger.error('Failed to get crop price history', error as Error);
+            res.status(500).json({ error: 'Failed to get crop price history' });
+        }
+    });
+
+    // POST /api/prices/fetch - Manually trigger price fetch
+    app.post('/api/prices/fetch', async (_req: Request, res: Response) => {
+        try {
+            const success = await PriceTrackerService.fetchAndStorePrices();
+            if (success) {
+                res.json({ success: true, message: 'Prices fetched and stored' });
+            } else {
+                res.status(500).json({ error: 'Failed to fetch prices' });
+            }
+        } catch (error) {
+            logger.error('Failed to fetch prices', error as Error);
+            res.status(500).json({ error: 'Failed to fetch prices' });
+        }
+    });
+
+    // POST /api/prices/start - Start the price tracker
+    app.post('/api/prices/start', (_req: Request, res: Response) => {
+        try {
+            if (PriceTrackerService.isActive()) {
+                res.status(400).json({ error: 'Price tracker is already running' });
+                return;
+            }
+            PriceTrackerService.start();
+            res.json({ success: true, message: 'Price tracker started' });
+        } catch (error) {
+            logger.error('Failed to start price tracker', error as Error);
+            res.status(500).json({ error: 'Failed to start price tracker' });
+        }
+    });
+
+    // POST /api/prices/stop - Stop the price tracker
+    app.post('/api/prices/stop', (_req: Request, res: Response) => {
+        try {
+            if (!PriceTrackerService.isActive()) {
+                res.status(400).json({ error: 'Price tracker is not running' });
+                return;
+            }
+            PriceTrackerService.stop();
+            res.json({ success: true, message: 'Price tracker stopped' });
+        } catch (error) {
+            logger.error('Failed to stop price tracker', error as Error);
+            res.status(500).json({ error: 'Failed to stop price tracker' });
+        }
+    });
+
+    // GET /api/debug/crop-value/:cropId - Debug endpoint to get crop value using MarketService
+    app.get('/api/debug/crop-value/:cropId', async (req: Request, res: Response) => {
+        try {
+            const cropId = parseInt(req.params.cropId, 10);
+            if (isNaN(cropId)) {
+                res.status(400).json({ error: 'Invalid crop ID' });
+                return;
+            }
+
+            const accountId = req.query.accountId as string || ConfigManager.getAccounts().find(a => a.enabled)?.id;
+            if (!accountId) {
+                res.status(400).json({ error: 'No account specified' });
+                return;
+            }
+
+            const apiClient = await getDebugApiClient(accountId);
+            if (!apiClient) {
+                res.status(500).json({ error: 'No valid session available for this account' });
+                return;
+            }
+
+            // Create MarketService to use getCropValue
+            const siloService = new SiloService(apiClient, logger);
+            const marketService = new MarketService(apiClient, siloService, logger);
+
+            // Get the specific crop value
+            const cropValue = await marketService.getCropValue(cropId);
+
+            // Also get all crop values for comparison
+            const allCropValues = await marketService.getCropValues();
+
+            // Get crop name from farm data
+            const accountFarmData = getAccountFarmData(accountId);
+            const cropData = accountFarmData.crops[String(cropId)];
+
+            logger.info(`Debug crop value for ${cropData?.name || `Crop ${cropId}`}: ${JSON.stringify(cropValue)}`);
+
+            res.json({
+                cropId,
+                cropName: cropData?.name || `Crop ${cropId}`,
+                cropValue,
+                allCropValues,
+                seedCostFromFarmData: cropData?.seedCost,
+                cropValueRatingFromFarmData: cropData?.cropValueRating
+            });
+        } catch (error) {
+            logger.error('Failed to get crop value', error as Error);
+            res.status(500).json({ error: 'Failed to get crop value' });
+        }
+    });
+
     // Start the server
     app.listen(port, () => {
         logger.info(`Web server running at http://localhost:${port}`);
+
+        // Auto-start price tracker if there are enabled accounts
+        const enabledAccounts = ConfigManager.getAccounts().filter(a => a.enabled);
+        if (enabledAccounts.length > 0) {
+            logger.info('Auto-starting price tracker...');
+            PriceTrackerService.start();
+        }
     });
 
     return app;
@@ -1048,5 +1203,8 @@ function maskAuthData(auth: AccountAuth): AccountAuth {
 export function stopBot(): void {
     if (orchestrator.isActive()) {
         orchestrator.stop();
+    }
+    if (PriceTrackerService.isActive()) {
+        PriceTrackerService.stop();
     }
 }
