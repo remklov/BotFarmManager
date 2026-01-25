@@ -6,6 +6,7 @@ import { ApiClient } from '../api/client';
 import { CropValue, CropValuesResponse, SellProductResponse } from '../types';
 import { Logger } from '../utils/logger';
 import { SiloService } from './SiloService';
+import { PriceTrackerService } from './PriceTrackerService';
 
 export interface SellResult {
     success: boolean;
@@ -194,20 +195,37 @@ export class MarketService {
         return currentPrice.cropValuePer1k >= minAcceptablePrice;
     }
 
+    /**
+     * Gets the maximum price for a crop from price history
+     * @param cropId The crop ID to look up
+     * @param lookBack Number of days to look back
+     * @returns The maximum price found, or current price if no history available
+     */
     async getMaxPrice(cropId: number, lookBack: number): Promise<number> {
-        if (cropId === 1) {
-            return 1800;
+        // Get price history from PriceTrackerService
+        const priceHistory = PriceTrackerService.getCropPriceHistory(String(cropId));
+
+        if (priceHistory.length === 0) {
+            // No history available, fall back to current price
+            const currentValue = await this.getCropValue(cropId);
+            return currentValue?.cropValuePer1k || 0;
         }
-        if (cropId === 4) {
-            return 2500;
+
+        // Calculate cutoff timestamp for lookBack days
+        const cutoffTime = Date.now() - (lookBack * 24 * 60 * 60 * 1000);
+
+        // Filter prices within the lookBack period
+        const recentPrices = priceHistory
+            .filter(entry => new Date(entry.timestamp).getTime() >= cutoffTime)
+            .map(entry => entry.price);
+
+        if (recentPrices.length === 0) {
+            // No prices within lookBack period, use all available history
+            const allPrices = priceHistory.map(entry => entry.price);
+            return Math.max(...allPrices);
         }
-        if (cropId === 12) {
-            return 6000;
-        }
-        if (cropId === 30) {
-            return 2000;
-        }
-        return 6000;
+
+        return Math.max(...recentPrices);
     }
 
     /**

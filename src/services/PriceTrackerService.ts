@@ -12,7 +12,7 @@ import { ConfigManager } from '../config/ConfigManager';
 import { AuthService } from './AuthService';
 
 const PRICE_HISTORY_FILE = path.join(process.cwd(), 'price-history.csv');
-const PRICE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const PRICE_CHECK_INTERVAL_MS = 15 * 60 * 1000; // 30 minutes
 const MAX_HISTORY_DAYS = 10;
 const MAX_HISTORY_MS = MAX_HISTORY_DAYS * 24 * 60 * 60 * 1000;
 
