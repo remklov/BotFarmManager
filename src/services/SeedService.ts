@@ -6,6 +6,7 @@ import { ApiClient } from '../api/client';
 import { CropScore, MarketSeed, SeedInventory } from '../types';
 import { Logger } from '../utils/logger';
 import { getConfiguredCropForFarmland } from '../server';
+import { ConfigManager } from '../config/ConfigManager';
 
 export interface BestSeedResult {
     cropId: number;
@@ -21,10 +22,12 @@ export interface BestSeedResult {
 export class SeedService {
     private api: ApiClient;
     private logger: Logger;
+    private accountId?: string;
 
-    constructor(api: ApiClient, logger: Logger) {
+    constructor(api: ApiClient, logger: Logger, accountId?: string) {
         this.api = api;
         this.logger = logger;
+        this.accountId = accountId;
     }
 
     /**
@@ -38,7 +41,10 @@ export class SeedService {
         this.logger.debugLog(`[SeedService] Searching for best seed for farmlandId: ${farmlandId}, area: ${area}ha`);
 
         // 0. Check for configured crop for this farmland
-        const configuredCropId = getConfiguredCropForFarmland(farmlandId);
+        const accountId = this.accountId || ConfigManager.getActiveAccount()?.id;
+        const configuredCropId = accountId
+            ? getConfiguredCropForFarmland(accountId, farmlandId)
+            : null;
         if (configuredCropId) {
             this.logger.info(`🌱 Using configured crop (ID: ${configuredCropId}) for farmland ${farmlandId}`);
         }

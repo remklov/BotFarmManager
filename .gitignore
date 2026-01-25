@@ -5,3 +5,4 @@ dist/
 nul
 .claude
 farm-data.json
+config.json

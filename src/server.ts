@@ -5,17 +5,68 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { FarmBot } from './bot/FarmBot';
 import { ApiClient } from './api/client';
-import { BotConfig } from './types';
 import { Logger, getLogBuffer, clearLogBuffer } from './utils/logger';
+import { ConfigManager, AccountAuth, DEFAULT_ACCOUNT_SETTINGS } from './config/ConfigManager';
+import { orchestrator } from './bot/BotOrchestrator';
+import { AuthService } from './services/AuthService';
 
 const logger = new Logger('Server');
 
-let currentBot: FarmBot | null = null;
-let botRunning = false;
-let configLoader: (() => Promise<BotConfig | null>) | null = null;
-let debugApiClient: ApiClient | null = null;
+// Debug API clients for each account (for manual data fetching)
+const debugApiClients: Map<string, { client: ApiClient; sessionId: string }> = new Map();
+
+// Helper to get or create debug API client for an account
+async function getDebugApiClient(accountId?: string): Promise<ApiClient | null> {
+    // If orchestrator is running, try to get the client from it
+    if (orchestrator.isActive() && accountId) {
+        const client = orchestrator.getApiClientForAccount(accountId);
+        if (client) return client;
+    }
+
+    // Fall back to creating a new client for the account
+    const targetAccountId = accountId || ConfigManager.getAccounts().find(a => a.enabled)?.id;
+    if (!targetAccountId) return null;
+
+    const account = ConfigManager.getAccount(targetAccountId);
+    if (!account) return null;
+
+    // Check if we have a cached client with valid session
+    const cached = debugApiClients.get(targetAccountId);
+    if (cached) return cached.client;
+
+    // Create new client by authenticating
+    try {
+        const authService = new AuthService();
+        let phpSessionId: string | undefined;
+
+        switch (account.auth.type) {
+            case 'androidToken':
+                if (account.auth.androidToken) {
+                    phpSessionId = await authService.loginWithAndroidToken(account.auth.androidToken);
+                }
+                break;
+            case 'email':
+                if (account.auth.email && account.auth.password) {
+                    phpSessionId = await authService.login(account.auth.email, account.auth.password);
+                }
+                break;
+            case 'session':
+                phpSessionId = account.auth.sessionId;
+                break;
+        }
+
+        if (phpSessionId) {
+            const client = new ApiClient(phpSessionId, logger);
+            debugApiClients.set(targetAccountId, { client, sessionId: phpSessionId });
+            return client;
+        }
+    } catch (error) {
+        logger.error(`Failed to create debug client for account ${targetAccountId}`, error as Error);
+    }
+
+    return null;
+}
 
 const MASTER_DATA_FILE = path.join(process.cwd(), 'farm-data.json');
 
@@ -49,32 +100,57 @@ interface CropData {
     growTime: number;
 }
 
+interface FarmField {
+    id: number;
+    farmlandId: number;
+    farmlandName: string;
+    area: number;
+    status: string;
+    opType: string | null;
+    cropName: string | null;
+    cropId: number | null;
+    cropImg: string | null;
+    pctCompleted: number | null;
+    timeRemain: number | null;
+    isMaturing: boolean;
+    complexityIndex: number | null;
+    details?: FarmlandDetails;
+    configuredCropId?: number | null;
+}
+
+interface Farm {
+    id: number;
+    name: string;
+    countryCode: string;
+    tractorCount: number;
+    fields: Record<string, FarmField>;
+}
+
+// Account-specific farm data (includes crops since unlock status varies per account)
+interface AccountFarmData {
+    lastUpdated: string;
+    crops: Record<string, CropData>;  // Account-specific - unlocked status varies
+    farms: Record<string, Farm>;
+}
+
+// Main data structure with multi-account support
 interface MasterFarmData {
+    version: string;
+    accounts: Record<string, AccountFarmData>;  // Account-specific data
+}
+
+// Legacy structure for migration (v1 - single account)
+interface LegacyMasterFarmDataV1 {
     lastUpdated: string;
     crops: Record<string, CropData>;
-    farms: Record<string, {
-        id: number;
-        name: string;
-        countryCode: string;
-        tractorCount: number;
-        fields: Record<string, {
-            id: number;
-            farmlandId: number;
-            farmlandName: string;
-            area: number;
-            status: string;
-            opType: string | null;
-            cropName: string | null;
-            cropId: number | null;
-            cropImg: string | null;
-            pctCompleted: number | null;
-            timeRemain: number | null;
-            isMaturing: boolean;
-            complexityIndex: number | null;
-            details?: FarmlandDetails;
-            configuredCropId?: number | null;
-        }>;
-    }>;
+    farms: Record<string, Farm>;
+}
+
+// Legacy structure for migration (v2 - multi-account with global crops)
+interface LegacyMasterFarmDataV2 {
+    version: string;
+    crops: Record<string, CropData>;  // Global crops
+    accounts: Record<string, { lastUpdated: string; farms: Record<string, Farm> }>;
 }
 
 export function loadMasterData(): MasterFarmData {
@@ -82,29 +158,118 @@ export function loadMasterData(): MasterFarmData {
         if (fs.existsSync(MASTER_DATA_FILE)) {
             const data = fs.readFileSync(MASTER_DATA_FILE, 'utf-8');
             const parsed = JSON.parse(data);
-            // Ensure crops field exists for backwards compatibility
-            if (!parsed.crops) {
-                parsed.crops = {};
+
+            // Check if this is the new v3 format (accounts have crops)
+            if (parsed.version === '3.0.0' && parsed.accounts) {
+                return parsed as MasterFarmData;
             }
-            return parsed;
+
+            // Check if this is v2 format (has version, accounts, and global crops)
+            if (parsed.version && parsed.accounts && parsed.crops) {
+                logger.info('Migrating farm-data.json from v2 to v3 (per-account crops)...');
+                const legacyV2 = parsed as LegacyMasterFarmDataV2;
+
+                // Move global crops to each account
+                const migrated: MasterFarmData = {
+                    version: '3.0.0',
+                    accounts: {}
+                };
+
+                for (const [accountId, accountData] of Object.entries(legacyV2.accounts)) {
+                    migrated.accounts[accountId] = {
+                        lastUpdated: accountData.lastUpdated,
+                        crops: { ...legacyV2.crops },  // Copy global crops to each account
+                        farms: accountData.farms
+                    };
+                }
+
+                saveMasterData(migrated);
+                logger.success('Migration to v3 complete. Crops are now per-account.');
+                return migrated;
+            }
+
+            // Check if this is v2 format without crops yet
+            if (parsed.version && parsed.accounts && !parsed.crops) {
+                // Already v3 or close to it, just ensure structure
+                const migrated: MasterFarmData = {
+                    version: '3.0.0',
+                    accounts: {}
+                };
+
+                for (const [accountId, accountData] of Object.entries(parsed.accounts) as [string, any][]) {
+                    migrated.accounts[accountId] = {
+                        lastUpdated: accountData.lastUpdated || '',
+                        crops: accountData.crops || {},
+                        farms: accountData.farms || {}
+                    };
+                }
+
+                saveMasterData(migrated);
+                return migrated;
+            }
+
+            // Migrate from legacy v1 format (single account)
+            logger.info('Migrating farm-data.json from v1 to v3...');
+            const legacyV1 = parsed as LegacyMasterFarmDataV1;
+            const activeAccount = ConfigManager.getActiveAccount();
+            const accountId = activeAccount?.id || 'default';
+
+            const migrated: MasterFarmData = {
+                version: '3.0.0',
+                accounts: {
+                    [accountId]: {
+                        lastUpdated: legacyV1.lastUpdated || new Date().toISOString(),
+                        crops: legacyV1.crops || {},
+                        farms: legacyV1.farms || {}
+                    }
+                }
+            };
+
+            saveMasterData(migrated);
+            logger.success(`Migration to v3 complete. Farm data assigned to account: ${accountId}`);
+            return migrated;
         }
     } catch (error) {
         logger.warn('Could not load master data file, starting fresh');
     }
-    return { lastUpdated: '', crops: {}, farms: {} };
+    return { version: '3.0.0', accounts: {} };
 }
 
 export function saveMasterData(data: MasterFarmData): void {
-    data.lastUpdated = new Date().toISOString();
     fs.writeFileSync(MASTER_DATA_FILE, JSON.stringify(data, null, 2));
 }
 
+// Get farm data for a specific account
+export function getAccountFarmData(accountId: string): AccountFarmData {
+    const masterData = loadMasterData();
+    if (!masterData.accounts[accountId]) {
+        masterData.accounts[accountId] = {
+            lastUpdated: '',
+            crops: {},
+            farms: {}
+        };
+    }
+    // Ensure crops exists for existing accounts
+    if (!masterData.accounts[accountId].crops) {
+        masterData.accounts[accountId].crops = {};
+    }
+    return masterData.accounts[accountId];
+}
+
+// Save farm data for a specific account
+export function saveAccountFarmData(accountId: string, farmData: AccountFarmData): void {
+    const masterData = loadMasterData();
+    farmData.lastUpdated = new Date().toISOString();
+    masterData.accounts[accountId] = farmData;
+    saveMasterData(masterData);
+}
+
 export function mergeFarmData(
-    masterData: MasterFarmData,
+    accountFarmData: AccountFarmData,
     cultivatingResponse: any,
     seedingResponse: any,
     pendingResponse: any
-): MasterFarmData {
+): AccountFarmData {
     // First, extract farm names from cultivating response (master source for farm names)
     const cultivatingFarmNames: Record<string, string> = {};
     if (cultivatingResponse?.farms) {
@@ -121,10 +286,10 @@ export function mergeFarmData(
     for (const response of farmInfoSources) {
         if (response?.farms) {
             for (const [farmId, farm] of Object.entries(response.farms) as [string, any][]) {
-                if (!masterData.farms[farmId]) {
+                if (!accountFarmData.farms[farmId]) {
                     // Use cultivating response name as master, fallback to current response name
                     const farmName = cultivatingFarmNames[farmId] || farm.name || `Farm ${farmId}`;
-                    masterData.farms[farmId] = {
+                    accountFarmData.farms[farmId] = {
                         id: Number(farmId),
                         name: farmName,
                         countryCode: farm.countryCode || '',
@@ -134,10 +299,10 @@ export function mergeFarmData(
                 } else {
                     // Update farm info but only update name from cultivating response
                     if (cultivatingFarmNames[farmId]) {
-                        masterData.farms[farmId].name = cultivatingFarmNames[farmId];
+                        accountFarmData.farms[farmId].name = cultivatingFarmNames[farmId];
                     }
-                    if (farm.countryCode) masterData.farms[farmId].countryCode = farm.countryCode;
-                    if (farm.tractorCount) masterData.farms[farmId].tractorCount = farm.tractorCount;
+                    if (farm.countryCode) accountFarmData.farms[farmId].countryCode = farm.countryCode;
+                    if (farm.tractorCount) accountFarmData.farms[farmId].tractorCount = farm.tractorCount;
                 }
 
                 // Extract fields from farmlands
@@ -147,8 +312,8 @@ export function mergeFarmData(
                             for (const [fieldKey, field] of Object.entries(stateData.data) as [string, any][]) {
                                 const fieldId = String(field.farmlandId || fieldKey);
                                 // Preserve existing configuredCropId and details
-                                const existingField = masterData.farms[farmId].fields[fieldId];
-                                masterData.farms[farmId].fields[fieldId] = {
+                                const existingField = accountFarmData.farms[farmId].fields[fieldId];
+                                accountFarmData.farms[farmId].fields[fieldId] = {
                                     id: field.id,
                                     farmlandId: field.farmlandId,
                                     farmlandName: field.farmlandName || '',
@@ -184,8 +349,8 @@ export function mergeFarmData(
                     const farmId = String(field.farmId);
 
                     // Ensure farm exists
-                    if (!masterData.farms[farmId]) {
-                        masterData.farms[farmId] = {
+                    if (!accountFarmData.farms[farmId]) {
+                        accountFarmData.farms[farmId] = {
                             id: Number(farmId),
                             name: `Farm ${farmId}`,
                             countryCode: '',
@@ -195,8 +360,8 @@ export function mergeFarmData(
                     }
 
                     // Update or create field, preserving existing configuredCropId and details
-                    const existingField = masterData.farms[farmId].fields[fieldId];
-                    masterData.farms[farmId].fields[fieldId] = {
+                    const existingField = accountFarmData.farms[farmId].fields[fieldId];
+                    accountFarmData.farms[farmId].fields[fieldId] = {
                         id: field.id,
                         farmlandId: field.farmlandId,
                         farmlandName: field.farmlandName || '',
@@ -218,13 +383,14 @@ export function mergeFarmData(
         }
     }
 
-    return masterData;
+    return accountFarmData;
 }
 
-export function mergeCropData(masterData: MasterFarmData, marketResponse: any): MasterFarmData {
+export function mergeCropData(accountId: string, marketResponse: any): void {
+    const accountFarmData = getAccountFarmData(accountId);
     if (marketResponse?.seed && Array.isArray(marketResponse.seed)) {
         for (const seed of marketResponse.seed) {
-            masterData.crops[String(seed.id)] = {
+            accountFarmData.crops[String(seed.id)] = {
                 id: seed.id,
                 name: seed.name,
                 type: seed.type,
@@ -237,13 +403,13 @@ export function mergeCropData(masterData: MasterFarmData, marketResponse: any): 
                 growTime: seed.growTime
             };
         }
+        saveAccountFarmData(accountId, accountFarmData);
     }
-    return masterData;
 }
 
-export function getConfiguredCropForFarmland(farmlandId: number): number | null {
-    const masterData = loadMasterData();
-    for (const farm of Object.values(masterData.farms)) {
+export function getConfiguredCropForFarmland(accountId: string, farmlandId: number): number | null {
+    const accountFarmData = getAccountFarmData(accountId);
+    for (const farm of Object.values(accountFarmData.farms)) {
         for (const field of Object.values(farm.fields)) {
             if (field.farmlandId === farmlandId && field.configuredCropId) {
                 return field.configuredCropId;
@@ -253,10 +419,6 @@ export function getConfiguredCropForFarmland(farmlandId: number): number | null 
     return null;
 }
 
-export function setConfigLoader(loader: () => Promise<BotConfig | null>): void {
-    configLoader = loader;
-}
-
 export function createServer(port: number = 3000): express.Application {
     const app = express();
 
@@ -264,11 +426,15 @@ export function createServer(port: number = 3000): express.Application {
     // Serve static files from src/public (works from both src/ and dist/)
     app.use(express.static(path.join(process.cwd(), 'src', 'public')));
 
-    // GET /api/status - Returns bot running state
+    // GET /api/status - Returns bot running state and account statuses
     app.get('/api/status', (_req: Request, res: Response) => {
+        const status = orchestrator.getStatus();
         res.json({
-            running: botRunning,
-            status: botRunning ? 'Running' : 'Stopped'
+            running: status.running,
+            status: status.running ? 'Running' : 'Stopped',
+            accounts: status.accounts,
+            totalCycles: status.totalCycles,
+            startedAt: status.startedAt
         });
     });
 
@@ -290,120 +456,125 @@ export function createServer(port: number = 3000): express.Application {
         res.json({ success: true });
     });
 
-    // POST /api/start - Starts the bot
+    // POST /api/start - Starts the orchestrator for all enabled accounts
     app.post('/api/start', async (_req: Request, res: Response) => {
-        if (botRunning) {
+        if (orchestrator.isActive()) {
             res.status(400).json({ error: 'Bot is already running' });
             return;
         }
 
-        if (!configLoader) {
-            res.status(500).json({ error: 'Config loader not set' });
-            return;
-        }
-
         try {
-            const config = await configLoader();
-
-            if (!config || !config.phpSessionId) {
-                res.status(500).json({ error: 'Authentication failed - no valid session' });
+            // Check if there are any enabled accounts
+            const enabledAccounts = ConfigManager.getAccounts().filter(a => a.enabled);
+            if (enabledAccounts.length === 0) {
+                res.status(400).json({ error: 'No enabled accounts found. Please enable at least one account.' });
                 return;
             }
 
-            currentBot = new FarmBot(config);
-            botRunning = true;
-
-            // Start bot in background (don't await)
-            currentBot.start().catch((error) => {
-                logger.error('Bot error', error);
-                botRunning = false;
-                currentBot = null;
+            // Start orchestrator in background (don't await)
+            orchestrator.start().catch((error) => {
+                logger.error('Orchestrator error', error);
             });
 
-            logger.info('Bot started via web interface');
-            res.json({ success: true, message: 'Bot started' });
+            logger.info('Orchestrator started via web interface');
+            res.json({
+                success: true,
+                message: `Starting bot for ${enabledAccounts.length} account(s)`,
+                accounts: enabledAccounts.map(a => a.name)
+            });
         } catch (error) {
-            logger.error('Failed to start bot', error as Error);
+            logger.error('Failed to start orchestrator', error as Error);
             res.status(500).json({ error: 'Failed to start bot' });
         }
     });
 
-    // POST /api/stop - Stops the bot
+    // POST /api/stop - Stops the orchestrator
     app.post('/api/stop', (_req: Request, res: Response) => {
-        if (!botRunning || !currentBot) {
+        if (!orchestrator.isActive()) {
             res.status(400).json({ error: 'Bot is not running' });
             return;
         }
 
         try {
-            currentBot.stop();
-            currentBot = null;
-            botRunning = false;
+            orchestrator.stop();
 
-            logger.info('Bot stopped via web interface');
+            logger.info('Orchestrator stopped via web interface');
             res.json({ success: true, message: 'Bot stopped' });
         } catch (error) {
-            logger.error('Failed to stop bot', error as Error);
+            logger.error('Failed to stop orchestrator', error as Error);
             res.status(500).json({ error: 'Failed to stop bot' });
         }
     });
 
     // POST /api/debug/pending - Fetch all tab data, merge, and save to master JSON
-    app.post('/api/debug/pending', async (_req: Request, res: Response) => {
-        if (!configLoader) {
-            res.status(500).json({ error: 'Config loader not set' });
-            return;
-        }
-
+    app.post('/api/debug/pending', async (req: Request, res: Response) => {
         try {
-            const config = await configLoader();
+            const requestedAccountId = req.query.accountId as string;
 
-            if (!config || !config.phpSessionId) {
-                res.status(500).json({ error: 'No valid session available' });
+            // Validate account exists
+            if (requestedAccountId && !ConfigManager.getAccount(requestedAccountId)) {
+                res.status(400).json({ error: 'Account not found' });
                 return;
             }
 
-            // Create or reuse debug API client
-            if (!debugApiClient) {
-                debugApiClient = new ApiClient(config.phpSessionId, logger);
+            // Determine which account to use
+            const accountId = requestedAccountId || ConfigManager.getAccounts().find(a => a.enabled)?.id;
+            if (!accountId) {
+                res.status(400).json({ error: 'No enabled account configured' });
+                return;
+            }
+
+            const apiClient = await getDebugApiClient(accountId);
+            if (!apiClient) {
+                res.status(500).json({ error: 'No valid session available for this account' });
+                return;
             }
 
             // Fetch all endpoints
+            logger.info(`Fetching data for account: ${ConfigManager.getAccount(accountId)?.name || accountId}...`);
             logger.info('Fetching cultivating tab data...');
-            const cultivatingData = await debugApiClient.getCultivatingTab();
+            const cultivatingData = await apiClient.getCultivatingTab();
 
             logger.info('Fetching seeding tab data...');
-            const seedingData = await debugApiClient.getSeedingTab();
+            const seedingData = await apiClient.getSeedingTab();
 
             logger.info('Fetching pending tab data...');
-            const pendingData = await debugApiClient.getPendingTab();
+            const pendingData = await apiClient.getPendingTab();
 
             logger.info('Fetching market seeds data...');
-            const marketData = await debugApiClient.getMarketSeeds();
+            const marketData = await apiClient.getMarketSeeds();
 
-            // Load existing master data
-            let masterData = loadMasterData();
+            // Load existing account farm data
+            let accountFarmData = getAccountFarmData(accountId);
 
-            // Merge all data
+            // Merge farm data for this account
             logger.info('Merging farm data...');
-            masterData = mergeFarmData(masterData, cultivatingData, seedingData, pendingData);
-            masterData = mergeCropData(masterData, marketData);
+            accountFarmData = mergeFarmData(accountFarmData, cultivatingData, seedingData, pendingData);
+            saveAccountFarmData(accountId, accountFarmData);
 
-            // Save master data
-            saveMasterData(masterData);
+            // Merge crop data for this account
+            mergeCropData(accountId, marketData);
+
+            // Reload account data for response
+            accountFarmData = getAccountFarmData(accountId);
 
             // Log summary
-            const farmCount = Object.keys(masterData.farms).length;
-            const fieldCount = Object.values(masterData.farms).reduce(
+            const farmCount = Object.keys(accountFarmData.farms).length;
+            const fieldCount = Object.values(accountFarmData.farms).reduce(
                 (sum, farm) => sum + Object.keys(farm.fields).length, 0
             );
-            const cropCount = Object.keys(masterData.crops).length;
-            logger.success(`Master data saved: ${farmCount} farms, ${fieldCount} fields, ${cropCount} crops`);
+            const cropCount = Object.keys(accountFarmData.crops).length;
+            logger.success(`Data saved for ${ConfigManager.getAccount(accountId)?.name || accountId}: ${farmCount} farms, ${fieldCount} fields, ${cropCount} crops`);
 
+            // Return data in format expected by frontend
             res.json({
                 success: true,
                 filename: 'farm-data.json',
-                data: masterData
+                data: {
+                    lastUpdated: accountFarmData.lastUpdated,
+                    crops: accountFarmData.crops,
+                    farms: accountFarmData.farms
+                }
             });
         } catch (error) {
             logger.error('Failed to fetch farm data', error as Error);
@@ -411,11 +582,24 @@ export function createServer(port: number = 3000): express.Application {
         }
     });
 
-    // GET /api/farms - Get current master farm data
-    app.get('/api/farms', (_req: Request, res: Response) => {
+    // GET /api/farms - Get farm data for specified account
+    app.get('/api/farms', (req: Request, res: Response) => {
         try {
-            const masterData = loadMasterData();
-            res.json(masterData);
+            // Use query param accountId or fall back to first enabled account
+            const accountId = req.query.accountId as string || ConfigManager.getAccounts().find(a => a.enabled)?.id;
+            if (!accountId) {
+                res.json({ lastUpdated: '', crops: {}, farms: {} });
+                return;
+            }
+
+            const accountFarmData = getAccountFarmData(accountId);
+
+            // Return in format expected by frontend
+            res.json({
+                lastUpdated: accountFarmData.lastUpdated,
+                crops: accountFarmData.crops,
+                farms: accountFarmData.farms
+            });
         } catch (error) {
             logger.error('Failed to load farm data', error as Error);
             res.status(500).json({ error: 'Failed to load farm data' });
@@ -425,13 +609,19 @@ export function createServer(port: number = 3000): express.Application {
     // PUT /api/farmland/:farmlandId/config - Set crop configuration for a farmland
     app.put('/api/farmland/:farmlandId/config', (req: Request, res: Response) => {
         try {
+            const { cropId, accountId: bodyAccountId } = req.body;
+            const accountId = bodyAccountId || req.query.accountId as string || ConfigManager.getAccounts().find(a => a.enabled)?.id;
+            if (!accountId) {
+                res.status(400).json({ error: 'No account specified' });
+                return;
+            }
+
             const farmlandId = parseInt(req.params.farmlandId, 10);
             if (isNaN(farmlandId)) {
                 res.status(400).json({ error: 'Invalid farmland ID' });
                 return;
             }
 
-            const { cropId } = req.body;
             // cropId can be null to clear the configuration
             const configuredCropId = cropId === null ? null : (typeof cropId === 'number' ? cropId : parseInt(cropId, 10));
 
@@ -440,10 +630,10 @@ export function createServer(port: number = 3000): express.Application {
                 return;
             }
 
-            const masterData = loadMasterData();
+            const accountFarmData = getAccountFarmData(accountId);
             let found = false;
 
-            for (const farm of Object.values(masterData.farms)) {
+            for (const farm of Object.values(accountFarmData.farms)) {
                 for (const field of Object.values(farm.fields)) {
                     if (field.farmlandId === farmlandId) {
                         field.configuredCropId = configuredCropId;
@@ -459,9 +649,9 @@ export function createServer(port: number = 3000): express.Application {
                 return;
             }
 
-            saveMasterData(masterData);
+            saveAccountFarmData(accountId, accountFarmData);
 
-            const cropName = configuredCropId ? masterData.crops[String(configuredCropId)]?.name : null;
+            const cropName = configuredCropId ? accountFarmData.crops[String(configuredCropId)]?.name : null;
             logger.info(`Configured farmland ${farmlandId} to use crop: ${cropName || 'auto (cleared)'}`);
 
             res.json({ success: true, farmlandId, configuredCropId, cropName });
@@ -471,25 +661,22 @@ export function createServer(port: number = 3000): express.Application {
         }
     });
 
-    // GET /api/silo - Get silo data
-    app.get('/api/silo', async (_req: Request, res: Response) => {
-        if (!configLoader) {
-            res.status(500).json({ error: 'Config loader not set' });
-            return;
-        }
-
+    // GET /api/silo - Get silo data for specified account
+    app.get('/api/silo', async (req: Request, res: Response) => {
         try {
-            const config = await configLoader();
-            if (!config || !config.phpSessionId) {
-                res.status(500).json({ error: 'No valid session available' });
+            const accountId = req.query.accountId as string || ConfigManager.getAccounts().find(a => a.enabled)?.id;
+            if (!accountId) {
+                res.status(400).json({ error: 'No account specified' });
                 return;
             }
 
-            if (!debugApiClient) {
-                debugApiClient = new ApiClient(config.phpSessionId, logger);
+            const apiClient = await getDebugApiClient(accountId);
+            if (!apiClient) {
+                res.status(500).json({ error: 'No valid session available for this account' });
+                return;
             }
 
-            const siloData = await debugApiClient.getSiloTab();
+            const siloData = await apiClient.getSiloTab();
             res.json(siloData);
         } catch (error) {
             logger.error('Failed to fetch silo data', error as Error);
@@ -499,29 +686,21 @@ export function createServer(port: number = 3000): express.Application {
 
     // POST /api/silo/sell/:cropId - Sell a product from silo
     app.post('/api/silo/sell/:cropId', async (req: Request, res: Response) => {
-        if (!configLoader) {
-            res.status(500).json({ error: 'Config loader not set' });
-            return;
-        }
-
         try {
+            const accountId = req.query.accountId as string || ConfigManager.getAccounts().find(a => a.enabled)?.id;
             const cropId = parseInt(req.params.cropId, 10);
             if (isNaN(cropId)) {
                 res.status(400).json({ error: 'Invalid crop ID' });
                 return;
             }
 
-            const config = await configLoader();
-            if (!config || !config.phpSessionId) {
+            const apiClient = await getDebugApiClient(accountId);
+            if (!apiClient) {
                 res.status(500).json({ error: 'No valid session available' });
                 return;
             }
 
-            if (!debugApiClient) {
-                debugApiClient = new ApiClient(config.phpSessionId, logger);
-            }
-
-            const result = await debugApiClient.sellProduct(cropId, 'all');
+            const result = await apiClient.sellProduct(cropId, 'all');
 
             if (result.success === 1) {
                 logger.success(`Sold ${result.amount?.toLocaleString() || 0}kg of ${result.cropData?.name || 'product'} for $${result.income?.toLocaleString() || 0}`);
@@ -536,34 +715,31 @@ export function createServer(port: number = 3000): express.Application {
 
     // GET /api/farmland/:farmlandId/details - Get details for a specific farmland
     app.get('/api/farmland/:farmlandId/details', async (req: Request, res: Response) => {
-        if (!configLoader) {
-            res.status(500).json({ error: 'Config loader not set' });
-            return;
-        }
-
         try {
+            const accountId = req.query.accountId as string || ConfigManager.getAccounts().find(a => a.enabled)?.id;
+            if (!accountId) {
+                res.status(400).json({ error: 'No account specified' });
+                return;
+            }
+
             const farmlandId = parseInt(req.params.farmlandId, 10);
             if (isNaN(farmlandId)) {
                 res.status(400).json({ error: 'Invalid farmland ID' });
                 return;
             }
 
-            const config = await configLoader();
-            if (!config || !config.phpSessionId) {
-                res.status(500).json({ error: 'No valid session available' });
+            const apiClient = await getDebugApiClient(accountId);
+            if (!apiClient) {
+                res.status(500).json({ error: 'No valid session available for this account' });
                 return;
             }
 
-            if (!debugApiClient) {
-                debugApiClient = new ApiClient(config.phpSessionId, logger);
-            }
+            const details = await apiClient.getFarmlandDetails(farmlandId);
 
-            const details = await debugApiClient.getFarmlandDetails(farmlandId);
-
-            // Update master data with fetched details
-            const masterData = loadMasterData();
-            for (const farm of Object.values(masterData.farms)) {
-                for (const [fieldId, field] of Object.entries(farm.fields)) {
+            // Update account farm data with fetched details
+            const accountFarmData = getAccountFarmData(accountId);
+            for (const farm of Object.values(accountFarmData.farms)) {
+                for (const field of Object.values(farm.fields)) {
                     if (field.farmlandId === farmlandId) {
                         field.details = {
                             city: details.city,
@@ -584,7 +760,7 @@ export function createServer(port: number = 3000): express.Application {
                     }
                 }
             }
-            saveMasterData(masterData);
+            saveAccountFarmData(accountId, accountFarmData);
 
             res.json(details);
         } catch (error) {
@@ -594,32 +770,29 @@ export function createServer(port: number = 3000): express.Application {
     });
 
     // POST /api/farms/fetch-missing-details - Fetch details for all farmlands missing details
-    app.post('/api/farms/fetch-missing-details', async (_req: Request, res: Response) => {
-        if (!configLoader) {
-            res.status(500).json({ error: 'Config loader not set' });
-            return;
-        }
-
+    app.post('/api/farms/fetch-missing-details', async (req: Request, res: Response) => {
         try {
-            const config = await configLoader();
-            if (!config || !config.phpSessionId) {
-                res.status(500).json({ error: 'No valid session available' });
+            const accountId = req.query.accountId as string || ConfigManager.getAccounts().find(a => a.enabled)?.id;
+            if (!accountId) {
+                res.status(400).json({ error: 'No account specified' });
                 return;
             }
 
-            if (!debugApiClient) {
-                debugApiClient = new ApiClient(config.phpSessionId, logger);
+            const apiClient = await getDebugApiClient(accountId);
+            if (!apiClient) {
+                res.status(500).json({ error: 'No valid session available for this account' });
+                return;
             }
 
-            const masterData = loadMasterData();
+            const accountFarmData = getAccountFarmData(accountId);
             let fetchedCount = 0;
 
-            for (const farm of Object.values(masterData.farms)) {
+            for (const farm of Object.values(accountFarmData.farms)) {
                 for (const field of Object.values(farm.fields)) {
                     if (!field.details) {
                         try {
                             logger.info(`Fetching details for field ${field.farmlandName} (${field.farmlandId})...`);
-                            const details = await debugApiClient.getFarmlandDetails(field.farmlandId);
+                            const details = await apiClient.getFarmlandDetails(field.farmlandId);
                             field.details = {
                                 city: details.city,
                                 country: details.country,
@@ -645,18 +818,207 @@ export function createServer(port: number = 3000): express.Application {
                 }
             }
 
-            saveMasterData(masterData);
+            saveAccountFarmData(accountId, accountFarmData);
             logger.success(`Fetched details for ${fetchedCount} fields`);
 
             res.json({
                 success: true,
                 fetchedCount,
-                data: masterData
+                data: {
+                    lastUpdated: accountFarmData.lastUpdated,
+                    crops: accountFarmData.crops,
+                    farms: accountFarmData.farms
+                }
             });
         } catch (error) {
             logger.error('Failed to fetch missing details', error as Error);
             res.status(500).json({ error: 'Failed to fetch missing details' });
         }
+    });
+
+    // ============================================
+    // Configuration API Endpoints
+    // ============================================
+
+    // GET /api/config - Get full configuration
+    app.get('/api/config', (_req: Request, res: Response) => {
+        try {
+            const config = ConfigManager.getConfig();
+            // Mask sensitive data in response
+            const safeConfig = {
+                ...config,
+                accounts: Object.fromEntries(
+                    Object.entries(config.accounts).map(([id, acc]) => [
+                        id,
+                        {
+                            ...acc,
+                            auth: maskAuthData(acc.auth)
+                        }
+                    ])
+                )
+            };
+            res.json(safeConfig);
+        } catch (error) {
+            logger.error('Failed to get config', error as Error);
+            res.status(500).json({ error: 'Failed to get configuration' });
+        }
+    });
+
+    // GET /api/config/accounts - Get all accounts
+    app.get('/api/config/accounts', (_req: Request, res: Response) => {
+        try {
+            const accounts = ConfigManager.getAccounts().map(acc => ({
+                ...acc,
+                auth: maskAuthData(acc.auth)
+            }));
+            res.json({ accounts });
+        } catch (error) {
+            logger.error('Failed to get accounts', error as Error);
+            res.status(500).json({ error: 'Failed to get accounts' });
+        }
+    });
+
+    // GET /api/config/accounts/:id - Get specific account
+    app.get('/api/config/accounts/:id', (req: Request, res: Response) => {
+        try {
+            const account = ConfigManager.getAccount(req.params.id);
+            if (!account) {
+                res.status(404).json({ error: 'Account not found' });
+                return;
+            }
+            res.json({
+                ...account,
+                auth: maskAuthData(account.auth)
+            });
+        } catch (error) {
+            logger.error('Failed to get account', error as Error);
+            res.status(500).json({ error: 'Failed to get account' });
+        }
+    });
+
+    // POST /api/config/accounts - Create new account
+    app.post('/api/config/accounts', (req: Request, res: Response) => {
+        try {
+            const { name, auth, settings } = req.body;
+
+            if (!name || !auth || !auth.type) {
+                res.status(400).json({ error: 'Name and auth.type are required' });
+                return;
+            }
+
+            const account = ConfigManager.createAccount(name, auth as AccountAuth, settings);
+            res.json({
+                success: true,
+                account: {
+                    ...account,
+                    auth: maskAuthData(account.auth)
+                }
+            });
+        } catch (error) {
+            logger.error('Failed to create account', error as Error);
+            res.status(500).json({ error: 'Failed to create account' });
+        }
+    });
+
+    // PUT /api/config/accounts/:id - Update account
+    app.put('/api/config/accounts/:id', (req: Request, res: Response) => {
+        try {
+            const accountId = req.params.id;
+            const updates = req.body;
+
+            const account = ConfigManager.updateAccount(accountId, updates);
+            res.json({
+                success: true,
+                account: {
+                    ...account,
+                    auth: maskAuthData(account.auth)
+                }
+            });
+        } catch (error) {
+            logger.error('Failed to update account', error as Error);
+            res.status(500).json({ error: (error as Error).message });
+        }
+    });
+
+    // DELETE /api/config/accounts/:id - Delete account
+    app.delete('/api/config/accounts/:id', (req: Request, res: Response) => {
+        try {
+            ConfigManager.deleteAccount(req.params.id);
+            res.json({ success: true });
+        } catch (error) {
+            logger.error('Failed to delete account', error as Error);
+            res.status(500).json({ error: (error as Error).message });
+        }
+    });
+
+    // POST /api/config/accounts/:id/activate - Set active account
+    app.post('/api/config/accounts/:id/activate', (req: Request, res: Response) => {
+        try {
+            ConfigManager.setActiveAccount(req.params.id);
+            res.json({ success: true, activeAccountId: req.params.id });
+        } catch (error) {
+            logger.error('Failed to set active account', error as Error);
+            res.status(500).json({ error: (error as Error).message });
+        }
+    });
+
+    // GET /api/config/active - Get active account
+    app.get('/api/config/active', (_req: Request, res: Response) => {
+        try {
+            const account = ConfigManager.getActiveAccount();
+            if (!account) {
+                res.json({ account: null });
+                return;
+            }
+            res.json({
+                account: {
+                    ...account,
+                    auth: maskAuthData(account.auth)
+                }
+            });
+        } catch (error) {
+            logger.error('Failed to get active account', error as Error);
+            res.status(500).json({ error: 'Failed to get active account' });
+        }
+    });
+
+    // PUT /api/config/global - Update global settings
+    app.put('/api/config/global', (req: Request, res: Response) => {
+        try {
+            const settings = ConfigManager.updateGlobalSettings(req.body);
+            res.json({ success: true, globalSettings: settings });
+        } catch (error) {
+            logger.error('Failed to update global settings', error as Error);
+            res.status(500).json({ error: 'Failed to update global settings' });
+        }
+    });
+
+    // POST /api/config/import-env - Import configuration from .env
+    app.post('/api/config/import-env', (_req: Request, res: Response) => {
+        try {
+            const account = ConfigManager.importFromEnv();
+            if (!account) {
+                res.status(400).json({ error: 'No credentials found in .env file' });
+                return;
+            }
+            res.json({
+                success: true,
+                account: {
+                    ...account,
+                    auth: maskAuthData(account.auth)
+                }
+            });
+        } catch (error) {
+            logger.error('Failed to import from .env', error as Error);
+            res.status(500).json({ error: 'Failed to import from .env' });
+        }
+    });
+
+    // GET /api/config/defaults - Get default settings
+    app.get('/api/config/defaults', (_req: Request, res: Response) => {
+        res.json({
+            settings: DEFAULT_ACCOUNT_SETTINGS
+        });
     });
 
     // Start the server
@@ -667,11 +1029,24 @@ export function createServer(port: number = 3000): express.Application {
     return app;
 }
 
+// Helper function to mask sensitive auth data
+function maskAuthData(auth: AccountAuth): AccountAuth {
+    const masked = { ...auth };
+    if (masked.androidToken) {
+        masked.androidToken = masked.androidToken.substring(0, 8) + '...' + masked.androidToken.substring(masked.androidToken.length - 4);
+    }
+    if (masked.password) {
+        masked.password = '********';
+    }
+    if (masked.sessionId) {
+        masked.sessionId = masked.sessionId.substring(0, 8) + '...';
+    }
+    return masked;
+}
+
 // Graceful shutdown helper
 export function stopBot(): void {
-    if (currentBot) {
-        currentBot.stop();
-        currentBot = null;
-        botRunning = false;
+    if (orchestrator.isActive()) {
+        orchestrator.stop();
     }
 }

@@ -6,7 +6,8 @@ import { ApiClient } from '../api/client';
 import { FarmService, TractorService, SiloService, MarketService, SeedService, FuelService } from '../services';
 import { BotConfig, AvailableTask,MarketSeed, BatchActionUnit } from '../types';
 import { Logger } from '../utils/logger';
-import { loadMasterData, saveMasterData, mergeFarmData, mergeCropData } from '../server';
+import { getAccountFarmData, saveAccountFarmData, mergeFarmData, mergeCropData } from '../server';
+import { ConfigManager } from '../config/ConfigManager';
 
 export class FarmBot {
     private api: ApiClient;
@@ -25,7 +26,8 @@ export class FarmBot {
 
     constructor(config: BotConfig) {
         this.config = config;
-        this.logger = new Logger('FarmBot', config.debug);
+        const loggerName = config.accountName ? `FarmBot:${config.accountName}` : 'FarmBot';
+        this.logger = new Logger(loggerName, config.debug);
         this.api = new ApiClient(config.phpSessionId!, this.logger);
 
         // Initialize services
@@ -33,7 +35,7 @@ export class FarmBot {
         this.tractorService = new TractorService(this.api, this.logger);
         this.siloService = new SiloService(this.api, this.logger);
         this.marketService = new MarketService(this.api, this.siloService, this.logger);
-        this.seedService = new SeedService(this.api, this.logger);
+        this.seedService = new SeedService(this.api, this.logger, config.accountId);
         this.fuelService = new FuelService(this.api, this.logger);
     }
 
@@ -109,6 +111,13 @@ export class FarmBot {
      */
     private async refreshFarmData(): Promise<void> {
         try {
+            // Use accountId from config if available, fall back to active account
+            const accountId = this.config.accountId || ConfigManager.getActiveAccount()?.id;
+            if (!accountId) {
+                this.logger.debugLog('No account ID, skipping farm data refresh');
+                return;
+            }
+
             this.logger.debugLog('Refreshing farm data...');
 
             const cultivatingData = await this.api.getCultivatingTab();
@@ -116,20 +125,26 @@ export class FarmBot {
             const pendingData = await this.api.getPendingTab();
             const marketData = await this.api.getMarketSeeds();
 
-            let masterData = loadMasterData();
-            masterData = mergeFarmData(masterData, cultivatingData, seedingData, pendingData);
-            masterData = mergeCropData(masterData, marketData);
+            // Get account-specific farm data
+            let accountFarmData = getAccountFarmData(accountId);
+            accountFarmData = mergeFarmData(accountFarmData, cultivatingData, seedingData, pendingData);
 
             // Fetch missing farmland details
-            await this.fetchMissingFarmlandDetails(masterData);
+            await this.fetchMissingFarmlandDetails(accountId, accountFarmData);
 
-            saveMasterData(masterData);
+            // Save account farm data
+            saveAccountFarmData(accountId, accountFarmData);
 
-            const farmCount = Object.keys(masterData.farms).length;
-            const fieldCount = Object.values(masterData.farms).reduce(
+            // Merge crop data for this account
+            mergeCropData(accountId, marketData);
+
+            // Reload to get updated crops
+            accountFarmData = getAccountFarmData(accountId);
+            const farmCount = Object.keys(accountFarmData.farms).length;
+            const fieldCount = Object.values(accountFarmData.farms).reduce(
                 (sum, farm) => sum + Object.keys(farm.fields).length, 0
             );
-            const cropCount = Object.keys(masterData.crops).length;
+            const cropCount = Object.keys(accountFarmData.crops).length;
             this.logger.debugLog(`Farm data refreshed: ${farmCount} farms, ${fieldCount} fields, ${cropCount} crops`);
         } catch (error) {
             this.logger.warn(`Failed to refresh farm data: ${(error as Error).message}`);
@@ -139,8 +154,8 @@ export class FarmBot {
     /**
      * Fetches details for farmlands that don't have details yet
      */
-    private async fetchMissingFarmlandDetails(masterData: ReturnType<typeof loadMasterData>): Promise<void> {
-        for (const farm of Object.values(masterData.farms)) {
+    private async fetchMissingFarmlandDetails(accountId: string, accountFarmData: ReturnType<typeof getAccountFarmData>): Promise<void> {
+        for (const farm of Object.values(accountFarmData.farms)) {
             for (const field of Object.values(farm.fields)) {
                 if (!field.details) {
                     try {

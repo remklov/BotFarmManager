@@ -435,6 +435,8 @@ export interface AuthCredentials {
 
 export interface BotConfig {
     phpSessionId?: string;
+    accountId?: string;  // Account ID for multi-account support
+    accountName?: string;  // Account name for logging
     credentials?: AuthCredentials;
     androidToken?: string; // Para login via guest Android token
     checkIntervalMinMs: number;
